@@ -11,6 +11,7 @@ const auditItemSchema = new mongoose.Schema({
 });
 
 const auditSchema = new mongoose.Schema({
+  company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
   warehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   status: { 
     type: String, 

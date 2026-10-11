@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Box } from 'lucide-react';
 import api from '../lib/api';
+import FeatureGuide from '../components/FeatureGuide';
 
 const StockForecasting = () => {
   const [forecastData, setForecastData] = useState([]);
@@ -27,19 +28,37 @@ const StockForecasting = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-          <TrendingUp className="text-indigo-600" /> Stock Forecasting
-        </h1>
-        <select
-          value={window}
-          onChange={(e) => setWindow(e.target.value)}
-          className="border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2 border"
-        >
-          <option value="7">Last 7 Days</option>
-          <option value="30">Last 30 Days</option>
-          <option value="90">Last 90 Days</option>
-        </select>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <TrendingUp className="text-indigo-600" size={26} /> Demand Forecasting & Runways
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Average Daily Usage (ADU) regression and automated replenishment alerts.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FeatureGuide
+            title="Demand Forecasting & Reorder Automation"
+            subtitle="Consumption velocity and stockout runway projections"
+            category="Predictive Analytics"
+            whatItIs="Analyzes historical daily sales and delivery series to calculate Average Daily Usage (ADU). It calculates exactly how many days of stock remain before a stockout occurs."
+            whyItMatters="Eliminates guesswork in purchasing. Automatically signals when On-Hand stock falls below (Lead-Time Demand + Safety Stock), avoiding catastrophic production stoppages."
+            howToUse={[
+              "Select 7, 30, or 90 days historical consumption window from the dropdown.",
+              "Look at Days of Runway: Under 7 days triggers an urgent reorder requirement.",
+              "Review Suggested Replenishment quantity to balance economic order quantities (EOQ)."
+            ]}
+            proTip="When a stockout is projected, check the Transfer Optimizer before issuing a vendor PO to see if surplus can be relocated from another Indian hub!"
+          />
+          <select
+            value={window}
+            onChange={(e) => setWindow(e.target.value)}
+            className="border-gray-300 rounded-xl shadow-xs text-xs font-semibold focus:ring-indigo-500 focus:border-indigo-500 p-2 border bg-white"
+          >
+            <option value="7">Last 7 Days Window</option>
+            <option value="30">Last 30 Days Window</option>
+            <option value="90">Last 90 Days Window</option>
+          </select>
+        </div>
       </div>
 
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">{error}</div>}

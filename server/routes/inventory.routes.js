@@ -14,9 +14,10 @@ const {
   rejectOperation
 } = require('../controllers/inventory.controller');
 
-const { protect, authorize } = require('../middleware/auth.middleware');
+const { protect, requireCompany, authorize } = require('../middleware/auth.middleware');
 
 router.use(protect);
+router.use(requireCompany);
 
 router.route('/operations')
   .post(createOperation)
@@ -29,24 +30,24 @@ router.route('/operations/:id/validate')
   .post(validateOperationController);
 
 router.route('/operations/:id/approve')
-  .put(authorize('ADMIN', 'MANAGER'), approveOperation);
+  .put(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), approveOperation);
 
 router.route('/operations/:id/reject')
-  .put(authorize('ADMIN', 'MANAGER'), rejectOperation);
+  .put(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), rejectOperation);
 
 router.route('/stock')
   .get(getStock);
 
 router.route('/ledger')
-  .get(authorize('ADMIN', 'MANAGER'), getLedger);
+  .get(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), getLedger);
 
 router.route('/aging')
-  .get(authorize('ADMIN', 'MANAGER'), getStockAging);
+  .get(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), getStockAging);
 
 router.route('/valuation')
-  .get(authorize('ADMIN', 'MANAGER'), getValuation);
+  .get(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), getValuation);
 
 router.route('/forecast')
-  .get(authorize('ADMIN', 'MANAGER'), getForecast);
+  .get(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), getForecast);
 
 module.exports = router;

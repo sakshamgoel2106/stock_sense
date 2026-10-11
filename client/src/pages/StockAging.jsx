@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Box } from 'lucide-react';
 import api from '../lib/api';
+import FeatureGuide from '../components/FeatureGuide';
 
 const StockAging = () => {
   const [agingData, setAgingData] = useState([]);
@@ -26,10 +27,26 @@ const StockAging = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-          <Clock className="text-indigo-600" /> Stock Aging Report
-        </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <Clock className="text-indigo-600" size={26} /> Stock Aging Analysis
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Perpetual FIFO batch age classification and dead-stock depreciation risk alerts.</p>
+        </div>
+        <FeatureGuide
+          title="Stock Aging & Dead-Stock Liquidation"
+          subtitle="FIFO batch layer duration across 5 aging tiers"
+          category="Working Capital Optimization"
+          whatItIs="Breaks down inventory across 5 chronological tiers (0–30 days, 31–60 days, 61–90 days, 91–180 days, and 180+ days) based on the exact inbound timestamp of each batch layer."
+          whyItMatters="Carrying obsolete or slow-moving stock ties up expensive working capital and risks total write-offs from expiry or tech obsolescence. Identifying batches >90 days old triggers transfer to high-demand hubs or clearance sales."
+          howToUse={[
+            "Filter items by Age Category to see products sitting stagnant on warehouse racks.",
+            "Items in 91–180d or 180+d should be prioritized for inter-hub transfer to active hubs.",
+            "Compare quantity vs daily demand velocity to project liquidation timelines."
+          ]}
+          proTip="Our FIFO engine automatically routes the oldest batches first on customer deliveries to minimize aging."
+        />
       </div>
 
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">{error}</div>}

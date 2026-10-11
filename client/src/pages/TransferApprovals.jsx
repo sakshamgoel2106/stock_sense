@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CheckSquare, Box, Check, X } from 'lucide-react';
 import api from '../lib/api';
+import FeatureGuide from '../components/FeatureGuide';
 
 const TransferApprovals = () => {
   const [operations, setOperations] = useState([]);
@@ -45,10 +46,26 @@ const TransferApprovals = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-          <CheckSquare className="text-indigo-600" /> Transfer Approvals
-        </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <CheckSquare className="text-indigo-600" size={26} /> Transfer Approvals
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Executive and managerial authorization gate for inter-warehouse inventory shipments. Company Admins and Managers hold full approval authority.</p>
+        </div>
+        <FeatureGuide
+          title="Inter-Warehouse Transfer Governance"
+          subtitle="Admin & Manager authorization gate for stock relocation"
+          category="Executive Governance"
+          whatItIs="A security review gate ensuring that inter-hub stock movements (e.g. Gurugram to Bhiwandi) cannot be dispatched without formal Company Admin or Managerial sign-off."
+          whyItMatters="Company Admins hold supreme authority over all inventory movements, preventing rogue shipments, stock shrinkage, and unauthorized freight expenditure."
+          howToUse={[
+            "Inspect the source warehouse, destination facility, SKU, and unit quantity.",
+            "Verify that source surplus does not violate the origin hub's safety buffer.",
+            "Company Admin or Manager clicks Approve to execute FIFO stock reallocation or Reject to stop the transfer."
+          ]}
+          proTip="Upon approval, StockSense automatically validates the operation, updates real-time stock balances across Indian hubs, and logs immutable ledger audit trails."
+        />
       </div>
 
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">{error}</div>}

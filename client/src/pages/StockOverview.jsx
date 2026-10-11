@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, AlertTriangle, CheckCircle, XCircle, Package, Database, AlertCircle } from 'lucide-react';
 import api from '../lib/api';
+import FeatureGuide from '../components/FeatureGuide';
 
 const StockOverview = () => {
   const [stockLevels, setStockLevels] = useState([]);
@@ -65,9 +66,24 @@ const StockOverview = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-950">Stock Overview</h1>
-        <p className="text-sm text-gray-500">Monitor your inventory levels across all warehouse locations.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Multi-Hub Inventory Matrix</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Real-time On-Hand, Reserved, and Available-To-Promise (ATP) stock balances across India.</p>
+        </div>
+        <FeatureGuide
+          title="Multi-Hub Inventory Matrix"
+          subtitle="Real-time stock balances & Available-To-Promise (ATP) tracking"
+          category="Inventory Control"
+          whatItIs="The central matrix of all SKU positions across all active warehouses. It tracks On-Hand Stock (physical inventory), Reserved Stock (allocated to pending client orders), and Available-To-Promise (ATP = On Hand - Reserved)."
+          whyItMatters="Prevents critical stockouts and double-selling. Having multi-hub visibility allows managers to detect shortages in one city and balance stock from surplus hubs."
+          howToUse={[
+            "Filter by warehouse dropdown (Mumbai, Delhi-NCR, Bengaluru, Chennai) to inspect regional distribution.",
+            "Search by product SKU or name to instantly verify stock across facilities.",
+            "Check the status badge: Green (Healthy), Amber (Below Reorder Point), Red (Depleted stockout)."
+          ]}
+          proTip="Workers only see stock records for facilities assigned to their profile, protecting sensitive cross-hub operations."
+        />
       </div>
 
       {/* Premium KPI Cards */}

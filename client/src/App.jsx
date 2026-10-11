@@ -31,6 +31,11 @@ import TransferApprovals from './pages/TransferApprovals';
 import AuditList from './pages/AuditList';
 import AuditForm from './pages/AuditForm';
 import AuditReview from './pages/AuditReview';
+import IntelligenceDashboard from './pages/IntelligenceDashboard';
+import CompanyOnboarding from './pages/CompanyOnboarding';
+import TeamManagement from './pages/TeamManagement';
+import Profile from './pages/Profile';
+import Settings from './pages/Settings';
 
 function App() {
   return (
@@ -44,9 +49,22 @@ function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
 
           <Route element={<ProtectedRoute />}>
+            {/* Standalone Onboarding Route for users without active company */}
+            <Route path="/onboarding" element={<CompanyOnboarding />} />
+
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
               
+              {/* User Profile & Enterprise Settings */}
+              <Route path="profile" element={<Profile />} />
+              <Route path="settings" element={<Settings />} />
+
+              {/* AI Inventory Intelligence */}
+              <Route path="intelligence" element={<IntelligenceDashboard />} />
+
+              {/* Team & Company Management */}
+              <Route path="team" element={<TeamManagement />} />
+
               <Route path="products" element={<Products />} />
               <Route path="products/new" element={<ProductForm />} />
               <Route path="products/:id/edit" element={<ProductForm />} />

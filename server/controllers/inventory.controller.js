@@ -17,13 +17,16 @@ const createOperation = asyncHandler(async (req, res) => {
     throw new Error('Please provide items for the operation');
   }
 
+  const requiresApproval = type === 'TRANSFER' && (req.company?.settings?.requireTransferApproval !== false);
   const operation = new Operation({
     type,
     sourceWarehouse,
     destinationWarehouse,
     items,
     createdBy: req.user ? req.user._id : null,
-    approvalStatus: type === 'TRANSFER' ? 'PENDING' : 'NOT_REQUIRED'
+    approvalStatus: requiresApproval ? 'PENDING' : 'NOT_REQUIRED',
+    company: req.company ? req.company._id : null,
+    owner: req.user ? req.user._id : null
   });
 
   const createdOperation = await operation.save();
@@ -34,10 +37,21 @@ const createOperation = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/inventory/operations
 // @access  Private
 const getOperations = asyncHandler(async (req, res) => {
-  const operations = await Operation.find({})
-    .populate('sourceWarehouse', 'name')
-    .populate('destinationWarehouse', 'name')
-    .populate('items.product', 'name sku');
+  const query = {};
+  if (req.company) {
+    query.company = req.company._id;
+  }
+  if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
+    query.$or = [
+      { sourceWarehouse: { $in: req.membership.warehouseIds } },
+      { destinationWarehouse: { $in: req.membership.warehouseIds } }
+    ];
+  }
+  const operations = await Operation.find(query)
+    .populate('sourceWarehouse', 'name code')
+    .populate('destinationWarehouse', 'name code')
+    .populate('items.product', 'name sku')
+    .sort({ createdAt: -1 });
   res.json(operations);
 });
 
@@ -63,8 +77,9 @@ const getOperationById = asyncHandler(async (req, res) => {
 // @access  Private
 const validateOperationController = asyncHandler(async (req, res) => {
   const userId = req.user ? req.user._id : null;
+  const userRole = req.membership ? req.membership.role : (req.user ? req.user.role : null);
   try {
-    const operation = await validateOperation(req.params.id, userId);
+    const operation = await validateOperation(req.params.id, userId, userRole);
     res.json({ message: 'Operation validated successfully', operation });
   } catch (error) {
     res.status(400);
@@ -78,8 +93,19 @@ const validateOperationController = asyncHandler(async (req, res) => {
 const getStock = asyncHandler(async (req, res) => {
   const { warehouse, product, search } = req.query;
   const filter = {};
+  if (req.company) filter.company = req.company._id;
   if (warehouse) filter.warehouse = warehouse;
   if (product) filter.product = product;
+
+  // Worker warehouse restriction
+  if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
+    if (filter.warehouse) {
+      const isAllowed = req.membership.warehouseIds.some(wId => wId.toString() === filter.warehouse.toString());
+      if (!isAllowed) return res.json([]);
+    } else {
+      filter.warehouse = { $in: req.membership.warehouseIds };
+    }
+  }
 
   if (search) {
     const products = await require('../models/Product').find({
@@ -104,9 +130,20 @@ const getStock = asyncHandler(async (req, res) => {
 const getLedger = asyncHandler(async (req, res) => {
   const { warehouse, product, operation } = req.query;
   const filter = {};
+  if (req.company) filter.company = req.company._id;
   if (warehouse) filter.warehouse = warehouse;
   if (product) filter.product = product;
   if (operation) filter.operation = operation;
+
+  // Worker warehouse restriction
+  if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
+    if (filter.warehouse) {
+      const isAllowed = req.membership.warehouseIds.some(wId => wId.toString() === filter.warehouse.toString());
+      if (!isAllowed) return res.json([]);
+    } else {
+      filter.warehouse = { $in: req.membership.warehouseIds };
+    }
+  }
 
   const ledger = await StockLedger.find(filter)
     .populate('product', 'name sku')
@@ -124,8 +161,18 @@ const getStockAging = asyncHandler(async (req, res) => {
   const { warehouse, product } = req.query;
   const match = { remainingQuantity: { $gt: 0 } };
   
+  if (req.company) match.company = new mongoose.Types.ObjectId(req.company._id);
   if (warehouse) match.warehouse = new mongoose.Types.ObjectId(warehouse);
   if (product) match.product = new mongoose.Types.ObjectId(product);
+
+  if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
+    if (warehouse) {
+      const isAllowed = req.membership.warehouseIds.some(wId => wId.toString() === warehouse.toString());
+      if (!isAllowed) return res.json([]);
+    } else {
+      match.warehouse = { $in: req.membership.warehouseIds.map(wId => new mongoose.Types.ObjectId(wId)) };
+    }
+  }
 
   const now = new Date();
   
@@ -196,8 +243,18 @@ const getValuation = asyncHandler(async (req, res) => {
   const { warehouse, product } = req.query;
   const match = { remainingQuantity: { $gt: 0 } };
   
+  if (req.company) match.company = new mongoose.Types.ObjectId(req.company._id);
   if (warehouse) match.warehouse = new mongoose.Types.ObjectId(warehouse);
   if (product) match.product = new mongoose.Types.ObjectId(product);
+
+  if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
+    if (warehouse) {
+      const isAllowed = req.membership.warehouseIds.some(wId => wId.toString() === warehouse.toString());
+      if (!isAllowed) return res.json([]);
+    } else {
+      match.warehouse = { $in: req.membership.warehouseIds.map(wId => new mongoose.Types.ObjectId(wId)) };
+    }
+  }
 
   const valuationReport = await StockLayer.aggregate([
     { $match: match },
@@ -235,8 +292,18 @@ const getForecast = asyncHandler(async (req, res) => {
   const { warehouse, product, window = 30 } = req.query;
   const match = { operationType: 'DELIVERY' };
   
+  if (req.company) match.company = new mongoose.Types.ObjectId(req.company._id);
   if (warehouse) match.warehouse = new mongoose.Types.ObjectId(warehouse);
   if (product) match.product = new mongoose.Types.ObjectId(product);
+
+  if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
+    if (warehouse) {
+      const isAllowed = req.membership.warehouseIds.some(wId => wId.toString() === warehouse.toString());
+      if (!isAllowed) return res.json([]);
+    } else {
+      match.warehouse = { $in: req.membership.warehouseIds.map(wId => new mongoose.Types.ObjectId(wId)) };
+    }
+  }
 
   const windowDays = parseInt(window);
   const cutoffDate = new Date();

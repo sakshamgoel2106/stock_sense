@@ -7,17 +7,18 @@ const {
   updateProduct,
   deleteProduct
 } = require('../controllers/product.controller');
-const { protect } = require('../middleware/auth.middleware');
+const { protect, requireCompany, authorize } = require('../middleware/auth.middleware');
 
 router.use(protect);
+router.use(requireCompany);
 
 router.route('/')
   .get(getProducts)
-  .post(createProduct);
+  .post(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), createProduct);
 
 router.route('/:id')
   .get(getProductById)
-  .put(updateProduct)
-  .delete(deleteProduct);
+  .put(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), updateProduct)
+  .delete(authorize('COMPANY_ADMIN', 'ADMIN'), deleteProduct);
 
 module.exports = router;

@@ -2,8 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Edit, Trash2, Box } from 'lucide-react';
 import api from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import FeatureGuide from '../components/FeatureGuide';
 
 const Products = () => {
+  const { user, role } = useAuth();
+  const isCompanyAdmin = role === 'COMPANY_ADMIN' || role === 'ADMIN' || user?.role === 'COMPANY_ADMIN' || user?.role === 'ADMIN';
+  const isManager = role === 'MANAGER' || user?.role === 'MANAGER' || isCompanyAdmin;
+
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -65,11 +71,33 @@ const Products = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">Products</h1>
-        <Link to="/products/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors">
-          <Plus size={20} /> New Product
-        </Link>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <Box className="text-indigo-600" size={26} /> Product Master Catalog
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Enterprise SKU registry with supplier lead times, safety stock days, and INR costs.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FeatureGuide
+            title="Product Master Catalog & SKU Profiles"
+            subtitle="Central supply chain parameters for every SKU"
+            category="Master Data"
+            whatItIs="The central registry for all inventory items. Defines SKU identifiers, category classifications, unit acquisition costs (INR ₹), supplier lead times (days), and minimum safety stock buffers."
+            whyItMatters="Accurate product lead times and safety days drive automated reorder formulas, transfer ranking algorithms, and economic batch sizing across your supply chain."
+            howToUse={[
+              "Search by SKU or name using the instant debounce search bar.",
+              "Filter by category (Electronics, Pharma, Textiles, Engineering) or status.",
+              "Managers and Admins can create new SKUs or modify lead time parameters."
+            ]}
+            proTip="Workers have read-only access to verify product specifications during physical counts and dispatches."
+          />
+          {isManager && (
+            <Link to="/products/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all">
+              <Plus size={18} /> New Product
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-4">
@@ -160,12 +188,17 @@ const Products = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link to={`/products/${product._id}/edit`} className="text-indigo-600 hover:text-indigo-900 mr-4">
-                        <Edit size={18} className="inline" />
-                      </Link>
-                      <button onClick={() => handleDelete(product._id)} className="text-red-600 hover:text-red-900">
-                        <Trash2 size={18} className="inline" />
-                      </button>
+                      {isManager && (
+                        <Link to={`/products/${product._id}/edit`} className="text-indigo-600 hover:text-indigo-900 mr-4">
+                          <Edit size={18} className="inline" />
+                        </Link>
+                      )}
+                      {isCompanyAdmin && (
+                        <button onClick={() => handleDelete(product._id)} className="text-red-600 hover:text-red-900">
+                          <Trash2 size={18} className="inline" />
+                        </button>
+                      )}
+                      {!isManager && <span className="text-gray-400 text-xs italic">View only</span>}
                     </td>
                   </tr>
                 ))}

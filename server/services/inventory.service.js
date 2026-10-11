@@ -10,15 +10,14 @@ const StockLayer = require('../models/StockLayer');
  */
 const runWithTransaction = async (logic) => {
   let session = null;
-  // MongoDB transactions require replica sets. Check if we have one.
-  const hasReplicaSet = mongoose.connection.client.topology.s.hasPrimary; // Approximation
-  
-  if (hasReplicaSet) {
+  const topologyType = mongoose.connection.client?.topology?.description?.type || '';
+  const isReplicaSet = topologyType.includes('ReplicaSet') || Boolean(mongoose.connection.replicaSet);
+
+  if (isReplicaSet) {
     try {
       session = await mongoose.startSession();
       session.startTransaction();
     } catch (err) {
-      console.warn("Could not start transaction, running without it. (Ensure MongoDB is running as a replica set)");
       session = null;
     }
   }
@@ -32,14 +31,22 @@ const runWithTransaction = async (logic) => {
     return result;
   } catch (error) {
     if (session) {
-      await session.abortTransaction();
-      session.endSession();
+      try { await session.abortTransaction(); } catch (e) {}
+      try { session.endSession(); } catch (e) {}
+    }
+    // Fallback if environment does not support replica set transactions (e.g. standalone test server)
+    if (error.message && (
+      error.message.includes('replica set') || 
+      error.message.includes('Transaction numbers are only allowed') ||
+      error.message.includes('does not support transactions')
+    )) {
+      return await logic(null);
     }
     throw error;
   }
 };
 
-const _updateStock = async (product, warehouse, quantityChange, session) => {
+const _updateStock = async (product, warehouse, quantityChange, session, company, owner) => {
   let stock = await Stock.findOne({ product, warehouse }).session(session);
   let previousQuantity = 0;
   
@@ -47,7 +54,13 @@ const _updateStock = async (product, warehouse, quantityChange, session) => {
     if (quantityChange < 0) {
       throw new Error(`Insufficient stock for product ${product} in warehouse ${warehouse}`);
     }
-    stock = new Stock({ product, warehouse, quantity: quantityChange });
+    stock = new Stock({ 
+      product, 
+      warehouse, 
+      quantity: quantityChange,
+      company: company || null,
+      owner: owner || null
+    });
     await stock.save({ session });
     return { previousQuantity: 0, newQuantity: quantityChange };
   }
@@ -94,7 +107,7 @@ const _consumeFIFO = async (product, warehouse, quantityToConsume, session) => {
   }
 };
 
-const _transferFIFO = async (product, sourceWarehouse, destWarehouse, quantityToTransfer, operationId, session) => {
+const _transferFIFO = async (product, sourceWarehouse, destWarehouse, quantityToTransfer, operation, session) => {
   let remaining = quantityToTransfer;
   const layers = await StockLayer.find({
     product,
@@ -120,9 +133,11 @@ const _transferFIFO = async (product, sourceWarehouse, destWarehouse, quantityTo
     
     if (taken > 0) {
       const destLayer = new StockLayer({
+        company: operation.company || layer.company,
+        owner: operation.owner || layer.owner,
         product,
         warehouse: destWarehouse,
-        operation: operationId,
+        operation: operation._id,
         originalQuantity: taken,
         remainingQuantity: taken,
         unitCost: layer.unitCost, // transfer existing cost
@@ -133,7 +148,7 @@ const _transferFIFO = async (product, sourceWarehouse, destWarehouse, quantityTo
   }
 };
 
-const validateOperation = async (operationId, userId) => {
+const validateOperation = async (operationId, userId, userRole = null) => {
   return await runWithTransaction(async (session) => {
     const operation = await Operation.findById(operationId).session(session);
     
@@ -147,17 +162,30 @@ const validateOperation = async (operationId, userId) => {
       throw new Error("Cannot validate a cancelled operation");
     }
     if (operation.approvalStatus === 'PENDING') {
-      throw new Error("Operation requires manager approval");
+      const isSuperAdmin = userRole === 'COMPANY_ADMIN' || userRole === 'ADMIN';
+      const isManager = userRole === 'MANAGER';
+      if (isSuperAdmin || isManager) {
+        // Supreme authority: Company Admin or Manager validating directly executes approval
+        operation.approvalStatus = 'APPROVED';
+        operation.approvedBy = userId;
+        await operation.save({ session });
+      } else {
+        throw new Error("Transfer requires Company Admin or Manager approval before validation");
+      }
     }
 
     const { type, items, sourceWarehouse, destinationWarehouse } = operation;
+    const opCompany = operation.company;
+    const opOwner = operation.owner || userId;
 
     for (const item of items) {
       if (type === 'RECEIPT') {
-        const { previousQuantity, newQuantity } = await _updateStock(item.product, destinationWarehouse, item.quantity, session);
+        const { previousQuantity, newQuantity } = await _updateStock(item.product, destinationWarehouse, item.quantity, session, opCompany, opOwner);
         
         // Create new StockLayer
         const newLayer = new StockLayer({
+          company: opCompany,
+          owner: opOwner,
           product: item.product,
           warehouse: destinationWarehouse,
           operation: operation._id,
@@ -169,6 +197,8 @@ const validateOperation = async (operationId, userId) => {
         await newLayer.save({ session });
 
         await _createLedgerEntry({
+          company: opCompany,
+          owner: opOwner,
           operation: operation._id,
           operationType: type,
           product: item.product,
@@ -180,12 +210,14 @@ const validateOperation = async (operationId, userId) => {
         }, session);
       } 
       else if (type === 'DELIVERY') {
-        const { previousQuantity, newQuantity } = await _updateStock(item.product, sourceWarehouse, -item.quantity, session);
+        const { previousQuantity, newQuantity } = await _updateStock(item.product, sourceWarehouse, -item.quantity, session, opCompany, opOwner);
         
         // Consume FIFO
         await _consumeFIFO(item.product, sourceWarehouse, item.quantity, session);
 
         await _createLedgerEntry({
+          company: opCompany,
+          owner: opOwner,
           operation: operation._id,
           operationType: type,
           product: item.product,
@@ -198,15 +230,17 @@ const validateOperation = async (operationId, userId) => {
       } 
       else if (type === 'TRANSFER') {
         // Decrease from source
-        const sourceUpdate = await _updateStock(item.product, sourceWarehouse, -item.quantity, session);
+        const sourceUpdate = await _updateStock(item.product, sourceWarehouse, -item.quantity, session, opCompany, opOwner);
         
         // Increase in destination
-        const destUpdate = await _updateStock(item.product, destinationWarehouse, item.quantity, session);
+        const destUpdate = await _updateStock(item.product, destinationWarehouse, item.quantity, session, opCompany, opOwner);
         
         // Transfer FIFO layers
-        await _transferFIFO(item.product, sourceWarehouse, destinationWarehouse, item.quantity, operation._id, session);
+        await _transferFIFO(item.product, sourceWarehouse, destinationWarehouse, item.quantity, operation, session);
 
         await _createLedgerEntry({
+          company: opCompany,
+          owner: opOwner,
           operation: operation._id,
           operationType: type,
           product: item.product,
@@ -218,6 +252,8 @@ const validateOperation = async (operationId, userId) => {
         }, session);
         
         await _createLedgerEntry({
+          company: opCompany,
+          owner: opOwner,
           operation: operation._id,
           operationType: type,
           product: item.product,
@@ -234,11 +270,13 @@ const validateOperation = async (operationId, userId) => {
         const currentQty = stock ? stock.quantity : 0;
         const delta = item.quantity - currentQty;
         
-        const { previousQuantity, newQuantity } = await _updateStock(item.product, destinationWarehouse, delta, session);
+        const { previousQuantity, newQuantity } = await _updateStock(item.product, destinationWarehouse, delta, session, opCompany, opOwner);
         
         if (delta > 0) {
           // Gain: new layer
           const newLayer = new StockLayer({
+            company: opCompany,
+            owner: opOwner,
             product: item.product,
             warehouse: destinationWarehouse,
             operation: operation._id,
@@ -255,6 +293,8 @@ const validateOperation = async (operationId, userId) => {
 
         if (delta !== 0) {
           await _createLedgerEntry({
+            company: opCompany,
+            owner: opOwner,
             operation: operation._id,
             operationType: type,
             product: item.product,

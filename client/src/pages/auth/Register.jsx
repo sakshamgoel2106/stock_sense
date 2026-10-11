@@ -6,8 +6,9 @@ import { motion } from "motion/react";
 import { GoogleLogin } from '@react-oauth/google';
 
 const ROLES = [
-  { value: 'WORKER', label: 'Warehouse Staff (Worker)', desc: 'Can perform operations and view stock' },
-  { value: 'MANAGER', label: 'Inventory Manager', desc: 'Full access including reports and approvals' },
+  { value: 'WORKER', label: 'Warehouse Staff (Worker)', desc: 'Floor operations, receipts, deliveries & assigned stock view' },
+  { value: 'MANAGER', label: 'Inventory Manager', desc: 'Logistics review, replenishment, audit reconciliation & transfer approvals' },
+  { value: 'COMPANY_ADMIN', label: 'Company Admin / Executive', desc: 'Supreme authority: Full control over all approvals, hubs, members & settings' },
 ];
 
 export default function Register() {

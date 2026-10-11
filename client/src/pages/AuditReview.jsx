@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 const AuditReview = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   
   const [audit, setAudit] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -105,7 +105,9 @@ const AuditReview = () => {
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading...</div>;
 
-  const isManager = user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  const isCompanyAdmin = role === 'COMPANY_ADMIN' || role === 'ADMIN' || user?.role === 'ADMIN' || user?.role === 'COMPANY_ADMIN';
+  const hasApprovalAuthority = isCompanyAdmin || role === 'MANAGER' || user?.role === 'MANAGER';
+  const isManager = hasApprovalAuthority; // backwards compatibility with internal bindings
   const isPending = audit?.status === 'PENDING_REVIEW';
   const isStale = audit?.status === 'RECOUNT_REQUIRED';
 
@@ -124,6 +126,11 @@ const AuditReview = () => {
         }`}>
           {audit?.status}
         </span>
+        {hasApprovalAuthority && isPending && (
+          <span className="text-xs bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full font-semibold border border-indigo-200 ml-auto">
+            {isCompanyAdmin ? 'Company Admin Approval Gate' : 'Manager Review Gate'}
+          </span>
+        )}
       </div>
 
       {staleError && (

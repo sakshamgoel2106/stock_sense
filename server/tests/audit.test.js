@@ -8,6 +8,8 @@ const Warehouse = require('../models/Warehouse');
 const Stock = require('../models/Stock');
 const User = require('../models/User');
 const Audit = require('../models/Audit');
+const Company = require('../models/Company');
+const Membership = require('../models/Membership');
 
 let mongoServer;
 
@@ -39,7 +41,7 @@ const generateToken = (id) => {
 
 describe('Smart Stock Audit API', () => {
   let admin, manager, staff, productA, productB, warehouse;
-  let adminToken, managerToken, staffToken;
+  let adminToken, managerToken, staffToken, company;
 
   beforeEach(async () => {
     admin = await User.create({ name: 'Admin', email: 'admin@test.com', password: 'password', role: 'ADMIN' });
@@ -50,12 +52,18 @@ describe('Smart Stock Audit API', () => {
     managerToken = generateToken(manager._id);
     staffToken = generateToken(staff._id);
 
-    productA = await Product.create({ name: 'Laptop', sku: 'LAP123', prices: [{ currency: 'USD', amount: 1000 }] });
-    productB = await Product.create({ name: 'Mouse', sku: 'MOU123', prices: [{ currency: 'USD', amount: 20 }] });
-    warehouse = await Warehouse.create({ name: 'Main Warehouse', code: 'MAIN1' });
+    company = await Company.create({ name: 'Audit Corp', code: 'AUDIT1', createdBy: admin._id });
 
-    await Stock.create({ product: productA._id, warehouse: warehouse._id, quantity: 50 });
-    await Stock.create({ product: productB._id, warehouse: warehouse._id, quantity: 100 });
+    await Membership.create({ userId: admin._id, companyId: company._id, role: 'COMPANY_ADMIN', status: 'ACTIVE' });
+    await Membership.create({ userId: manager._id, companyId: company._id, role: 'MANAGER', status: 'ACTIVE' });
+    await Membership.create({ userId: staff._id, companyId: company._id, role: 'WORKER', status: 'ACTIVE' });
+
+    productA = await Product.create({ company: company._id, owner: admin._id, name: 'Laptop', sku: 'LAP123', prices: [{ currency: 'USD', amount: 1000 }] });
+    productB = await Product.create({ company: company._id, owner: admin._id, name: 'Mouse', sku: 'MOU123', prices: [{ currency: 'USD', amount: 20 }] });
+    warehouse = await Warehouse.create({ company: company._id, owner: admin._id, name: 'Main Warehouse', code: 'MAIN1' });
+
+    await Stock.create({ owner: admin._id, product: productA._id, warehouse: warehouse._id, quantity: 50 });
+    await Stock.create({ owner: admin._id, product: productB._id, warehouse: warehouse._id, quantity: 100 });
   });
 
   it('1. Staff creates audit and cannot see system quantity before or after submission', async () => {

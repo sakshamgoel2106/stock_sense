@@ -30,6 +30,8 @@ const createReservation = asyncHandler(async (req, res) => {
       quantity,
       orderReference,
       user: userId,
+      company: req.company ? req.company._id : null,
+      owner: req.user ? req.user._id : null,
       status: 'ACTIVE'
     });
     const savedReservation = await reservation.save({ session });
@@ -49,10 +51,12 @@ const createReservation = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/reservations
 // @access  Private
 const getReservations = asyncHandler(async (req, res) => {
-  const reservations = await Reservation.find()
+  const query = {};
+  if (req.company) query.company = req.company._id;
+  const reservations = await Reservation.find(query)
     .populate('product', 'name sku')
-    .populate('warehouse', 'name')
-    .populate('user', 'name')
+    .populate('warehouse', 'name code')
+    .populate('user', 'name email')
     .sort({ createdAt: -1 });
   res.json(reservations);
 });
@@ -119,7 +123,10 @@ const fulfillReservation = asyncHandler(async (req, res) => {
         quantity: reservation.quantity
       }],
       createdBy: userId,
-      status: 'DRAFT'
+      company: req.company ? req.company._id : reservation.company,
+      owner: req.user ? req.user._id : reservation.owner,
+      status: 'DRAFT',
+      approvalStatus: 'NOT_REQUIRED'
     });
     await operation.save({ session });
 

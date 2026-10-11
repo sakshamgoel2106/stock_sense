@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, Box } from 'lucide-react';
 import api from '../lib/api';
+import FeatureGuide from '../components/FeatureGuide';
 
 const InventoryValuation = () => {
   const [valuationData, setValuationData] = useState([]);
@@ -28,13 +29,31 @@ const InventoryValuation = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-          <DollarSign className="text-indigo-600" /> Inventory Valuation
-        </h1>
-        <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-indigo-800">
-          <span className="text-sm font-medium mr-2">Total Value:</span>
-          <span className="text-xl font-bold">₹{totalPortfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <DollarSign className="text-indigo-600" size={26} /> Perpetual FIFO Inventory Valuation
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Asset balance sheet tracking powered by granular FIFO procurement batch layers.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FeatureGuide
+            title="FIFO Perpetual Inventory Valuation"
+            subtitle="GAAP / Ind AS compliant asset reporting"
+            category="Financial Accounting"
+            whatItIs="Calculates the real financial value of all physical inventory held in stock across warehouses. Evaluated using First-In-First-Out (FIFO) perpetual cost layers."
+            whyItMatters="Essential for corporate balance sheets, P&L reporting, working capital audits, and insurance coverage. Eliminates distortion caused by price inflation."
+            howToUse={[
+              "Check the total portfolio valuation card in Indian Rupees (₹).",
+              "Review the table to see unit cost layers and extended total values per SKU and hub.",
+              "Track how outgoing deliveries consume the oldest cost layers first to calculate accurate COGS."
+            ]}
+            proTip="Valuation accurately excludes reserved units from unencumbered liquidity while preserving asset totals on balance sheets."
+          />
+          <div className="bg-indigo-50 border border-indigo-200/80 rounded-xl px-4 py-2 text-indigo-950 shadow-xs">
+            <span className="text-xs text-indigo-700 font-bold block uppercase tracking-wider">Total Portfolio Assets</span>
+            <span className="text-lg sm:text-xl font-extrabold">₹{totalPortfolioValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+          </div>
         </div>
       </div>
 

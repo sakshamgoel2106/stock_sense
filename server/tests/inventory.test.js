@@ -9,6 +9,8 @@ const Stock = require('../models/Stock');
 const Operation = require('../models/Operation');
 const StockLedger = require('../models/StockLedger');
 const User = require('../models/User');
+const Company = require('../models/Company');
+const Membership = require('../models/Membership');
 
 let mongoServer;
 
@@ -40,15 +42,28 @@ const generateToken = (id) => {
 };
 
 describe('Inventory Operations API', () => {
-  let product, warehouseA, warehouseB, admin, adminToken;
+  let product, warehouseA, warehouseB, admin, adminToken, company, membership;
 
   beforeEach(async () => {
     admin = await User.create({ name: 'Admin', email: 'admin@test.com', password: 'password', role: 'ADMIN' });
     adminToken = generateToken(admin._id);
 
-    product = await Product.create({ name: 'Laptop', sku: 'LAP123', prices: [{ currency: 'USD', amount: 1000 }] });
-    warehouseA = await Warehouse.create({ name: 'Main Warehouse', code: 'MAIN1' });
-    warehouseB = await Warehouse.create({ name: 'Secondary Warehouse', code: 'SEC1' });
+    company = await Company.create({
+      name: 'Test Corp',
+      code: 'TEST1',
+      createdBy: admin._id
+    });
+
+    membership = await Membership.create({
+      userId: admin._id,
+      companyId: company._id,
+      role: 'COMPANY_ADMIN',
+      status: 'ACTIVE'
+    });
+
+    product = await Product.create({ company: company._id, owner: admin._id, name: 'Laptop', sku: 'LAP123', prices: [{ currency: 'USD', amount: 1000 }] });
+    warehouseA = await Warehouse.create({ company: company._id, owner: admin._id, name: 'Main Warehouse', code: 'MAIN1' });
+    warehouseB = await Warehouse.create({ company: company._id, owner: admin._id, name: 'Secondary Warehouse', code: 'SEC1' });
   });
 
   it('1. Receipt increases stock correctly', async () => {
@@ -78,7 +93,7 @@ describe('Inventory Operations API', () => {
   });
 
   it('2. Delivery decreases stock correctly', async () => {
-    await Stock.create({ product: product._id, warehouse: warehouseA._id, quantity: 100 });
+    await Stock.create({ owner: admin._id, product: product._id, warehouse: warehouseA._id, quantity: 100 });
 
     const opRes = await request(app)
       .post('/api/v1/inventory/operations')
@@ -99,7 +114,7 @@ describe('Inventory Operations API', () => {
   });
 
   it('3. Delivery fails when stock is insufficient', async () => {
-    await Stock.create({ product: product._id, warehouse: warehouseA._id, quantity: 10 });
+    await Stock.create({ owner: admin._id, product: product._id, warehouse: warehouseA._id, quantity: 10 });
 
     const opRes = await request(app)
       .post('/api/v1/inventory/operations')
@@ -121,8 +136,8 @@ describe('Inventory Operations API', () => {
   });
 
   it('4. Transfer decreases source and increases destination by the same amount', async () => {
-    await Stock.create({ product: product._id, warehouse: warehouseA._id, quantity: 100 });
-    await Stock.create({ product: product._id, warehouse: warehouseB._id, quantity: 50 });
+    await Stock.create({ owner: admin._id, product: product._id, warehouse: warehouseA._id, quantity: 100 });
+    await Stock.create({ owner: admin._id, product: product._id, warehouse: warehouseB._id, quantity: 50 });
 
     const opRes = await request(app)
       .post('/api/v1/inventory/operations')
@@ -152,7 +167,7 @@ describe('Inventory Operations API', () => {
   });
 
   it('5. Adjustment correctly applies the delta', async () => {
-    await Stock.create({ product: product._id, warehouse: warehouseA._id, quantity: 50 });
+    await Stock.create({ owner: admin._id, product: product._id, warehouse: warehouseA._id, quantity: 50 });
 
     const opRes = await request(app)
       .post('/api/v1/inventory/operations')

@@ -28,11 +28,13 @@ const register = asyncHandler(async (req, res) => {
     throw new Error('User already exists');
   }
 
+  // Security hardening: Public registration must always assign least-privileged WORKER role.
+  // Role elevation to MANAGER/ADMIN is restricted to internal administrative workflows.
   const user = await User.create({
     name,
     email,
     password,
-    role: role || 'WORKER'
+    role: 'WORKER'
   });
 
   if (user) {
@@ -69,7 +71,31 @@ const login = asyncHandler(async (req, res) => {
 });
 
 const getMe = asyncHandler(async (req, res) => {
-  res.status(200).json(req.user);
+  const Membership = require('../models/Membership');
+  const memberships = await Membership.find({ userId: req.user._id, status: 'ACTIVE' }).populate('companyId');
+
+  res.status(200).json({
+    _id: req.user._id,
+    name: req.user.name,
+    email: req.user.email,
+    role: req.membership ? req.membership.role : req.user.role,
+    systemRole: req.user.role,
+    hasCompany: Boolean(req.company),
+    activeCompany: req.company,
+    activeMembership: req.membership ? {
+      _id: req.membership._id,
+      role: req.membership.role,
+      status: req.membership.status,
+      warehouseIds: req.membership.warehouseIds
+    } : null,
+    companies: memberships.map(m => ({
+      membershipId: m._id,
+      company: m.companyId,
+      role: m.role,
+      status: m.status,
+      warehouseIds: m.warehouseIds
+    }))
+  });
 });
 
 const forgotPassword = asyncHandler(async (req, res) => {
@@ -228,29 +254,102 @@ const googleAuth = asyncHandler(async (req, res) => {
       user.googleId = sub;
       await user.save();
     }
-    res.json({
-      _id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      token: generateToken(user._id),
-    });
   } else {
     user = await User.create({
       name: name,
       email: email,
       googleId: sub,
-      role: 'WORKER'
-    });
-
-    res.status(201).json({
-      _id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      token: generateToken(user._id),
+      role: 'ADMIN'
     });
   }
+
+  // Ensure user has access to demo company so all products and features are immediately accessible
+  const Membership = require('../models/Membership');
+  const Company = require('../models/Company');
+  let mem = await Membership.findOne({ userId: user._id, status: { $in: ['ACTIVE', 'PENDING_REMOVAL'] } });
+  if (!mem) {
+    const demoCompany = (await Company.findOne({ code: 'SS-INDIA' })) || 
+                        (await Company.findOne({ code: 'SS-GLOBAL' })) || 
+                        (await Company.findOne({}));
+    if (demoCompany) {
+      await Membership.create({
+        userId: user._id,
+        companyId: demoCompany._id,
+        role: 'COMPANY_ADMIN',
+        status: 'ACTIVE',
+        warehouseIds: []
+      });
+    }
+  }
+
+  res.json({
+    _id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    token: generateToken(user._id),
+  });
+});
+
+// @desc    Update user profile details (e.g. name)
+// @route   PUT /api/v1/auth/profile
+// @access  Private
+const updateProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  if (req.body.name) {
+    user.name = req.body.name.trim();
+  }
+
+  const updatedUser = await user.save();
+
+  res.json({
+    _id: updatedUser._id,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    role: req.membership ? req.membership.role : updatedUser.role,
+    message: 'Profile updated successfully'
+  });
+});
+
+// @desc    Change password
+// @route   PUT /api/v1/auth/password
+// @access  Private
+const updatePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const user = await User.findById(req.user._id);
+
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    res.status(400);
+    throw new Error('New password must be at least 6 characters');
+  }
+
+  // If user registered with email/password, verify old password
+  if (user.password) {
+    if (!currentPassword) {
+      res.status(400);
+      throw new Error('Current password is required');
+    }
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      res.status(400);
+      throw new Error('Current password does not match');
+    }
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  res.json({ message: 'Password updated successfully' });
 });
 
 module.exports = {
@@ -260,5 +359,7 @@ module.exports = {
   forgotPassword,
   verifyOTP,
   resetPassword,
-  googleAuth
+  googleAuth,
+  updateProfile,
+  updatePassword
 };

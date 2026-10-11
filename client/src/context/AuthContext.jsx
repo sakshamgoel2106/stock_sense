@@ -9,49 +9,75 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const res = await api.get('/auth/me');
-          setUser(res.data);
-        } catch (err) {
-          console.error(err);
-          localStorage.removeItem('token');
-        }
+  const fetchUser = async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const res = await api.get('/auth/me');
+        setUser(res.data);
+      } catch (err) {
+        console.error('Failed to fetch user state:', err);
+        localStorage.removeItem('token');
+        setUser(null);
       }
-      setLoading(false);
-    };
+    } else {
+      setUser(null);
+    }
+    setLoading(false);
+  };
 
+  useEffect(() => {
     fetchUser();
   }, []);
 
   const login = async (email, password) => {
     const res = await api.post('/auth/login', { email, password });
     localStorage.setItem('token', res.data.token);
-    setUser(res.data);
+    await fetchUser();
   };
 
   const register = async (name, email, password, role = 'WORKER') => {
     const res = await api.post('/auth/register', { name, email, password, role });
     localStorage.setItem('token', res.data.token);
-    setUser(res.data);
+    await fetchUser();
   };
 
   const googleLogin = async (credential) => {
     const res = await api.post('/auth/google', { credential });
     localStorage.setItem('token', res.data.token);
-    setUser(res.data);
+    await fetchUser();
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('companyId');
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    await fetchUser();
+  };
+
+  const switchCompany = async (companyId) => {
+    localStorage.setItem('companyId', companyId);
+    await fetchUser();
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, register, googleLogin, logout, loading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      company: user?.activeCompany || null,
+      membership: user?.activeMembership || null,
+      hasCompany: user?.hasCompany ?? false,
+      role: user?.activeMembership?.role || user?.role || 'WORKER',
+      login, 
+      register, 
+      googleLogin, 
+      logout, 
+      refreshUser,
+      switchCompany,
+      loading 
+    }}>
       {children}
     </AuthContext.Provider>
   );

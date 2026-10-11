@@ -15,6 +15,8 @@ const warehouseRoutes = require('./routes/warehouse.routes');
 const authRoutes = require('./routes/auth.routes');
 const reservationRoutes = require('./routes/reservation.routes');
 const auditRoutes = require('./routes/audit.routes');
+const intelligenceRoutes = require('./routes/intelligence.routes');
+const companyRoutes = require('./routes/company.routes');
 const connectDB = require('./config/db');
 
 require('dotenv').config();
@@ -34,11 +36,13 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/companies', companyRoutes);
 app.use('/api/v1/inventory', inventoryRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/warehouses', warehouseRoutes);
 app.use('/api/v1/reservations', reservationRoutes);
 app.use('/api/v1/audits', auditRoutes);
+app.use('/api/v1/intelligence', intelligenceRoutes);
 
 app.get('/', (req, res) => {
   res.send('StockSense API is running...');

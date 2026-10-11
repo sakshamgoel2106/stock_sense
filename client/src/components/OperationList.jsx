@@ -2,8 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, CheckCircle, Clock } from 'lucide-react';
 import api from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import FeatureGuide from './FeatureGuide';
 
 const OperationList = ({ title, type, newLink }) => {
+  const { user, role } = useAuth();
+  const isCompanyAdmin = role === 'COMPANY_ADMIN' || role === 'ADMIN' || user?.role === 'COMPANY_ADMIN' || user?.role === 'ADMIN';
+  const isManager = role === 'MANAGER' || user?.role === 'MANAGER' || isCompanyAdmin;
+
   const [operations, setOperations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -27,13 +33,19 @@ const OperationList = ({ title, type, newLink }) => {
     fetchOperations();
   }, [type]);
 
-  const handleValidate = async (id) => {
-    if (!window.confirm('Are you sure you want to validate this operation? This will affect stock.')) return;
+  const handleValidate = async (id, isPendingTransfer = false) => {
+    const confirmMsg = isPendingTransfer
+      ? 'Authorize and dispatch this inter-warehouse transfer? This will move stock between hubs.'
+      : 'Are you sure you want to validate this operation? This will affect stock.';
+    if (!window.confirm(confirmMsg)) return;
     
     try {
       setValidating(id);
+      if (isPendingTransfer) {
+        await api.put(`/inventory/operations/${id}/approve`);
+      }
       await api.post(`/inventory/operations/${id}/validate`);
-      alert('Operation validated successfully!');
+      alert(isPendingTransfer ? 'Transfer approved and validated successfully!' : 'Operation validated successfully!');
       fetchOperations();
     } catch (err) {
       alert(err?.response?.data?.message || 'Failed to validate operation');
@@ -42,13 +54,90 @@ const OperationList = ({ title, type, newLink }) => {
     }
   };
 
+  const getGuideProps = () => {
+    switch (type) {
+      case 'RECEIPT':
+        return {
+          title: "Inbound Goods Receipts (PO Receiving)",
+          subtitle: "Vendor goods arrival, inspection & FIFO layer creation",
+          category: "Inbound Logistics",
+          whatItIs: "Logs physical deliveries arriving from vendors into a specific warehouse. Each receipt generates an immutable StockLayer with procurement price and timestamp.",
+          whyItMatters: "Forms the bedrock of FIFO valuation. Every batch must be received before it can be assigned to customer orders or moved between hubs.",
+          howToUse: [
+            "Click 'New Receipt' to record supplier arrivals.",
+            "Select destination warehouse, product SKU, and verified received quantity.",
+            "Click 'Validate' to finalize the receipt and credit physical on-hand stock."
+          ],
+          proTip: "Worker accounts can record receipts for their assigned facility."
+        };
+      case 'DELIVERY':
+        return {
+          title: "Outbound Customer Deliveries",
+          subtitle: "Sales order dispatches & FIFO layer consumption",
+          category: "Outbound Fulfillment",
+          whatItIs: "Dispatches stock from the warehouse for client delivery. Automatically burns through the oldest active FIFO layers first.",
+          whyItMatters: "Calculates precise Cost of Goods Sold (COGS) and updates stock ledgers in real-time, preventing inventory discrepancies.",
+          howToUse: [
+            "Create a delivery operation referencing the customer order.",
+            "Verify requested quantities against Available-To-Promise (ATP) balances.",
+            "Validate to deduct stock and generate outbound shipping ledgers."
+          ],
+          proTip: "Deliveries automatically respect client reservations, locking reserved units for designated buyers."
+        };
+      case 'TRANSFER':
+        return {
+          title: "Inter-Warehouse Transfers",
+          subtitle: "Domestic hub-to-hub stock rebalancing",
+          category: "Network Logistics",
+          whatItIs: "Moves physical inventory between your regional hubs (e.g. from Delhi-NCR to Mumbai Bhiwandi) to prevent emergency stockouts without spending capital on new supplier purchases.",
+          whyItMatters: "Saves massive working capital and reduces lead times (1-2 days inter-hub vs 15-30 days supplier lead time).",
+          howToUse: [
+            "Select source warehouse (with surplus) and destination hub (in shortage).",
+            "Transfer enters PENDING approval state to comply with company transfer policies.",
+            "Once approved by Company Admin or Manager, validating moves stock into transit and reassigns FIFO layers."
+          ],
+          proTip: "Our Transfer Optimizer only recommends transfers when the source warehouse holds surplus strictly above its own safety buffer."
+        };
+      default:
+        return {
+          title: "Inventory Stock Adjustments",
+          subtitle: "Shrinkage, scrap & physical count reconciliation",
+          category: "Stock Assurance",
+          whatItIs: "Manually re-aligns computer records with physical warehouse quantities when goods are damaged, expired, or misplaced.",
+          whyItMatters: "Maintains financial reporting integrity and prevents phantom stock from blocking orders.",
+          howToUse: [
+            "Choose warehouse and SKU requiring adjustment.",
+            "Enter positive or negative quantity offset with an audit reason.",
+            "Validate to update on-hand positions and write ledger entries."
+          ],
+          proTip: "Always use Smart Audits for multi-SKU cycle counts rather than individual manual adjustments."
+        };
+    }
+  };
+
+  const guide = getGuideProps();
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">{title}</h1>
-        <Link to={newLink} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors">
-          <Plus size={20} /> New {title.slice(0, -1)}
-        </Link>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">{title}</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{guide.subtitle}</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FeatureGuide
+            title={guide.title}
+            subtitle={guide.subtitle}
+            category={guide.category}
+            whatItIs={guide.whatItIs}
+            whyItMatters={guide.whyItMatters}
+            howToUse={guide.howToUse}
+            proTip={guide.proTip}
+          />
+          <Link to={newLink} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all">
+            <Plus size={18} /> New {title.slice(0, -1)}
+          </Link>
+        </div>
       </div>
 
       {error && (
@@ -102,22 +191,45 @@ const OperationList = ({ title, type, newLink }) => {
                       ))}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        op.status === 'VALIDATED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {op.status === 'VALIDATED' ? <CheckCircle size={14} className="mr-1 inline" /> : <Clock size={14} className="mr-1 inline" />}
-                        {op.status}
-                      </span>
+                      {op.type === 'TRANSFER' && op.approvalStatus === 'PENDING' ? (
+                        <span className="px-2.5 py-1 inline-flex text-xs leading-5 font-bold rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                          <Clock size={13} className="mr-1 inline mt-0.5" />
+                          Pending Approval
+                        </span>
+                      ) : (
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                          op.status === 'VALIDATED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {op.status === 'VALIDATED' ? <CheckCircle size={14} className="mr-1 inline" /> : <Clock size={14} className="mr-1 inline" />}
+                          {op.status}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       {op.status === 'DRAFT' && (
-                        <button
-                          onClick={() => handleValidate(op._id)}
-                          disabled={validating === op._id}
-                          className="text-indigo-600 hover:text-indigo-900 font-medium disabled:opacity-50"
-                        >
-                          {validating === op._id ? 'Validating...' : 'Validate'}
-                        </button>
+                        op.type === 'TRANSFER' && op.approvalStatus === 'PENDING' ? (
+                          isManager ? (
+                            <button
+                              onClick={() => handleValidate(op._id, true)}
+                              disabled={validating === op._id}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg shadow-sm transition-all disabled:opacity-50"
+                            >
+                              {validating === op._id ? 'Processing...' : 'Approve & Validate'}
+                            </button>
+                          ) : (
+                            <span className="text-xs text-amber-600 font-medium italic">
+                              Awaiting Approval
+                            </span>
+                          )
+                        ) : (
+                          <button
+                            onClick={() => handleValidate(op._id, false)}
+                            disabled={validating === op._id}
+                            className="text-indigo-600 hover:text-indigo-900 font-medium disabled:opacity-50"
+                          >
+                            {validating === op._id ? 'Validating...' : 'Validate'}
+                          </button>
+                        )
                       )}
                     </td>
                   </tr>

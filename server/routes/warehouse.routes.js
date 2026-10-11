@@ -7,17 +7,18 @@ const {
   updateWarehouse,
   deleteWarehouse
 } = require('../controllers/warehouse.controller');
-const { protect } = require('../middleware/auth.middleware');
+const { protect, requireCompany, authorize } = require('../middleware/auth.middleware');
 
 router.use(protect);
+router.use(requireCompany);
 
 router.route('/')
   .get(getWarehouses)
-  .post(createWarehouse);
+  .post(authorize('COMPANY_ADMIN', 'ADMIN'), createWarehouse);
 
 router.route('/:id')
   .get(getWarehouseById)
-  .put(updateWarehouse)
-  .delete(deleteWarehouse);
+  .put(authorize('COMPANY_ADMIN', 'ADMIN'), updateWarehouse)
+  .delete(authorize('COMPANY_ADMIN', 'ADMIN'), deleteWarehouse);
 
 module.exports = router;

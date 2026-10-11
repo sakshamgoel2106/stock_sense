@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema({
     } 
   }, 
   googleId: { type: String, sparse: true, unique: true },
-  role: { type: String, enum: ['ADMIN', 'MANAGER', 'WORKER'], default: 'WORKER' },
+  role: { type: String, enum: ['ADMIN', 'MANAGER', 'WORKER', 'COMPANY_ADMIN'], default: 'WORKER' },
   resetPasswordOtpHash: String,
   resetPasswordOtpExpires: Date,
   resetPasswordAttempts: { type: Number, default: 0 },

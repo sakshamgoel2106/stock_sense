@@ -2,8 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
 import api from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
 const Warehouses = () => {
+  const { user, role } = useAuth();
+  const isCompanyAdmin = role === 'COMPANY_ADMIN' || role === 'ADMIN' || user?.role === 'COMPANY_ADMIN' || user?.role === 'ADMIN';
+
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,9 +44,11 @@ const Warehouses = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-800 tracking-tight">Warehouses</h1>
-        <Link to="/warehouses/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors">
-          <Plus size={20} /> New Warehouse
-        </Link>
+        {isCompanyAdmin && (
+          <Link to="/warehouses/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors">
+            <Plus size={20} /> New Warehouse
+          </Link>
+        )}
       </div>
 
       {error && (
@@ -87,12 +93,18 @@ const Warehouses = () => {
               </div>
               
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-                <Link to={`/warehouses/${warehouse._id}/edit`} className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1 font-medium text-sm">
-                  <Edit size={16} /> Edit
-                </Link>
-                <button onClick={() => handleDelete(warehouse._id)} className="text-red-600 hover:text-red-900 flex items-center gap-1 font-medium text-sm ml-2">
-                  <Trash2 size={16} /> Delete
-                </button>
+                {isCompanyAdmin ? (
+                  <>
+                    <Link to={`/warehouses/${warehouse._id}/edit`} className="text-indigo-600 hover:text-indigo-900 flex items-center gap-1 font-medium text-sm">
+                      <Edit size={16} /> Edit
+                    </Link>
+                    <button onClick={() => handleDelete(warehouse._id)} className="text-red-600 hover:text-red-900 flex items-center gap-1 font-medium text-sm ml-2">
+                      <Trash2 size={16} /> Delete
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-gray-400 text-xs italic">Assigned hub</span>
+                )}
               </div>
             </div>
           ))}

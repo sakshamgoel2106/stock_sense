@@ -24,6 +24,8 @@ const createAudit = asyncHandler(async (req, res) => {
     warehouse,
     items,
     countedBy: req.user._id,
+    company: req.company ? req.company._id : null,
+    owner: req.user ? req.user._id : null,
     status: 'DRAFT'
   });
 
@@ -105,14 +107,24 @@ const submitAudit = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/audits
 // @access  Private
 const getAudits = asyncHandler(async (req, res) => {
-  const audits = await Audit.find()
-    .populate('warehouse', 'name')
+  const query = {};
+  if (req.company) query.company = req.company._id;
+
+  if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
+    query.warehouse = { $in: req.membership.warehouseIds };
+  }
+
+  const audits = await Audit.find(query)
+    .populate('warehouse', 'name code')
     .populate('countedBy', 'name')
     .populate('reviewedBy', 'name')
     .populate('items.product', 'name sku')
     .sort({ createdAt: -1 });
 
-  if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER') {
+  const currentRole = req.membership ? req.membership.role : req.user.role;
+  const isManagerOrAdmin = currentRole === 'COMPANY_ADMIN' || currentRole === 'ADMIN' || currentRole === 'MANAGER';
+
+  if (!isManagerOrAdmin) {
     const maskedAudits = audits.map(audit => {
       const a = audit.toObject();
       if (a.status !== 'APPROVED' && a.status !== 'REJECTED') {
@@ -133,8 +145,11 @@ const getAudits = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/audits/:id
 // @access  Private
 const getAuditById = asyncHandler(async (req, res) => {
-  const audit = await Audit.findById(req.params.id)
-    .populate('warehouse', 'name')
+  const query = { _id: req.params.id };
+  if (req.company) query.company = req.company._id;
+
+  const audit = await Audit.findOne(query)
+    .populate('warehouse', 'name code')
     .populate('countedBy', 'name')
     .populate('reviewedBy', 'name')
     .populate('items.product', 'name sku');
@@ -144,8 +159,11 @@ const getAuditById = asyncHandler(async (req, res) => {
     throw new Error('Audit not found');
   }
 
+  const currentRole = req.membership ? req.membership.role : req.user.role;
+  const isManagerOrAdmin = currentRole === 'COMPANY_ADMIN' || currentRole === 'ADMIN' || currentRole === 'MANAGER';
+
   const a = audit.toObject();
-  if (req.user.role !== 'ADMIN' && req.user.role !== 'MANAGER' && a.status !== 'APPROVED' && a.status !== 'REJECTED') {
+  if (!isManagerOrAdmin && a.status !== 'APPROVED' && a.status !== 'REJECTED') {
     a.items.forEach(item => {
       delete item.systemQuantitySnapshot;
       delete item.variance;
@@ -170,7 +188,10 @@ const approveAudit = asyncHandler(async (req, res) => {
     if (!audit) throw new Error('Audit not found');
     if (audit.status !== 'PENDING_REVIEW') throw new Error('Audit is not pending review');
 
-    if (audit.countedBy.toString() === req.user._id.toString() && req.user.role !== 'ADMIN') {
+    const currentRole = req.membership ? req.membership.role : req.user.role;
+    const isSuperAdmin = currentRole === 'COMPANY_ADMIN' || currentRole === 'ADMIN';
+
+    if (audit.countedBy.toString() === req.user._id.toString() && !isSuperAdmin) {
         throw new Error('Separation of duties: You cannot approve an audit you counted yourself.');
     }
 
@@ -221,7 +242,10 @@ const approveAudit = asyncHandler(async (req, res) => {
         destinationWarehouse: audit.warehouse,
         items: adjustmentItems,
         createdBy: req.user._id,
-        status: 'DRAFT'
+        company: req.company ? req.company._id : audit.company,
+        owner: req.user ? req.user._id : audit.owner,
+        status: 'DRAFT',
+        approvalStatus: 'NOT_REQUIRED'
       });
       await operation.save({ session });
       audit.operationRef = operation._id;

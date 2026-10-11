@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ClipboardCheck, Plus, Eye, Edit } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import FeatureGuide from '../components/FeatureGuide';
 
 const AuditList = () => {
   const { user } = useAuth();
@@ -40,13 +41,31 @@ const AuditList = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-          <ClipboardCheck className="text-indigo-600" /> Smart Stock Audits
-        </h1>
-        <Link to="/audits/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors">
-          <Plus size={20} /> New Audit
-        </Link>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <ClipboardCheck className="text-indigo-600" size={26} /> Smart Stock Audits
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Physical cycle counts with segregation of duties and automated ledger reconciliations.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <FeatureGuide
+            title="Physical Stock Audits & Cycle Counting"
+            subtitle="Blind counting & discrepancy reconciliation"
+            category="Inventory Assurance"
+            whatItIs="Cycle counting protocol that decouples physical floor counting from administrative approval. Floor workers record actual batch quantities, and the system automatically calculates physical variances against theoretical stock."
+            whyItMatters="Essential for ISO compliance, statutory balance sheet audits, and detecting shrinkage. Company Admins and Managers hold full approval authority over stock adjustments."
+            howToUse={[
+              "Create an audit session for a specific warehouse.",
+              "Warehouse staff enters physical counts across SKUs.",
+              "Company Admin or Manager reviews discrepancies (loss/gain) and either approves adjustments or flags a recount."
+            ]}
+            proTip="Separation of duties is strictly enforced: floor workers cannot approve their own counts, while Company Admins maintain supreme override authority."
+          />
+          <Link to="/audits/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all">
+            <Plus size={18} /> New Audit
+          </Link>
+        </div>
       </div>
 
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">{error}</div>}

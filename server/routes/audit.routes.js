@@ -11,9 +11,10 @@ const {
   recountAudit
 } = require('../controllers/audit.controller');
 
-const { protect, authorize } = require('../middleware/auth.middleware');
+const { protect, requireCompany, authorize } = require('../middleware/auth.middleware');
 
 router.use(protect);
+router.use(requireCompany);
 
 router.route('/')
   .post(createAudit)
@@ -31,8 +32,8 @@ router.route('/:id/submit')
 router.route('/:id/recount')
   .post(recountAudit);
 
-// Manager only routes
-router.use(authorize('ADMIN', 'MANAGER'));
+// Manager / Admin only routes
+router.use(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'));
 
 router.route('/:id/approve')
   .post(approveAudit);

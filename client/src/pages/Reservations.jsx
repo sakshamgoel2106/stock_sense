@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bookmark, Box, CheckCircle, XCircle } from 'lucide-react';
 import api from '../lib/api';
+import FeatureGuide from '../components/FeatureGuide';
 
 const Reservations = () => {
   const [reservations, setReservations] = useState([]);
@@ -36,10 +37,26 @@ const Reservations = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
-          <Bookmark className="text-indigo-600" /> Stock Reservations
-        </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
+            <Bookmark className="text-indigo-600" size={26} /> Client Stock Reservations
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Available-To-Promise (ATP) hard stock allocations for enterprise client purchase orders.</p>
+        </div>
+        <FeatureGuide
+          title="Client Stock Reservations (ATP)"
+          subtitle="Hard allocation of inventory against client purchase orders"
+          category="Fulfillment Assurance"
+          whatItIs="Locks down specific batch quantities for enterprise buyers (e.g. Tata Motors, Reliance Retail). The stock stays physically on warehouse racks but is removed from Available-To-Promise (ATP) to prevent double-selling."
+          whyItMatters="Guarantees order fulfillment SLA compliance and protects contract revenue from being poached by other walk-in or emergency dispatches."
+          howToUse={[
+            "Track customer name, order reference number, product SKU, and warehouse.",
+            "Click Fulfill to convert the reservation into an outward delivery operation.",
+            "Click Cancel to release reserved stock back into the general available pool."
+          ]}
+          proTip="Available-To-Promise is calculated as: ATP = Physical On-Hand - Active Reservations."
+        />
       </div>
 
       {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">{error}</div>}

@@ -3,18 +3,21 @@ import { Package, AlertTriangle, AlertCircle, Clock, TrendingUp, DollarSign } fr
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import FeatureGuide from '../components/FeatureGuide';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const isCompanyAdmin = role === 'COMPANY_ADMIN' || role === 'ADMIN' || user?.role === 'COMPANY_ADMIN' || user?.role === 'ADMIN';
+  const isManager = role === 'MANAGER' || user?.role === 'MANAGER' || isCompanyAdmin;
 
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
         setLoading(true);
-        const isManager = user?.role === 'MANAGER' || user?.role === 'ADMIN';
 
         const requests = [
           api.get('/products'),
@@ -117,8 +120,25 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">Dashboard</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight">Executive Dashboard</h1>
+          <p className="text-gray-500 text-xs sm:text-sm mt-0.5">Real-time supply chain telemetry across Indian regional distribution hubs</p>
+        </div>
+        <FeatureGuide
+          title="Supply Chain Command Center"
+          subtitle="Real-time multi-hub intelligence & inventory telemetry"
+          category="Executive Dashboard"
+          whatItIs="The central mission control for your multi-warehouse network. It aggregates live stock quantities, total portfolio balance sheet valuation in INR (₹), low-stock warnings, and real-time ledger movements across Mumbai, Delhi-NCR, Bengaluru, and Chennai."
+          whyItMatters="Enables managers and executives to identify inventory bottlenecks, prevent critical stockouts, and monitor stock turnover without manually consolidating disparate warehouse spreadsheets."
+          howToUse={[
+            "Monitor Total Valuation & Units across the top KPI metric cards.",
+            "Inspect the Low Stock Warning banner to trigger purchase orders or inter-hub transfers.",
+            "Analyze the Facility Breakdown chart to see inventory concentration across zones.",
+            "Review Recent Stock Movements to track real-time receipt, delivery, and transfer operations."
+          ]}
+          proTip="Restricted workers only see operational KPIs for their assigned facility, while managers see enterprise-wide metrics."
+        />
       </div>
 
       {/* KPI Cards */}
@@ -130,7 +150,7 @@ const Dashboard = () => {
             <p className="text-2xl font-bold text-gray-900">{stats.totalProducts}</p>
           </div>
         </div>
-        {user?.role === 'MANAGER' || user?.role === 'ADMIN' ? (
+        {isManager ? (
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
             <div className="p-3 bg-blue-50 text-blue-600 rounded-lg"><DollarSign size={24} /></div>
             <div>
@@ -232,7 +252,7 @@ const Dashboard = () => {
       </div>
 
       {/* Recent Ledger / Activity */}
-      {(user?.role === 'MANAGER' || user?.role === 'ADMIN') && (
+      {isManager && (
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Recent Stock Movements</h2>
           {stats.recentLedger.length > 0 ? (

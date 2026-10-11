@@ -10,5 +10,7 @@ router.post('/verify-otp', authController.verifyOTP);
 router.post('/reset-password', authController.resetPassword);
 router.post('/google', authController.googleAuth);
 router.get('/me', protect, authController.getMe);
+router.put('/profile', protect, authController.updateProfile);
+router.put('/password', protect, authController.updatePassword);
 
 module.exports = router;

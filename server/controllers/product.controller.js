@@ -10,6 +10,10 @@ const getProducts = asyncHandler(async (req, res) => {
   const { search, category, status } = req.query;
   const filter = {};
 
+  if (req.company) {
+    filter.company = req.company._id;
+  }
+
   if (search) {
     filter.$or = [
       { name: { $regex: search, $options: 'i' } },
@@ -27,16 +31,30 @@ const getProducts = asyncHandler(async (req, res) => {
 // @route   POST /api/v1/products
 // @access  Private
 const createProduct = asyncHandler(async (req, res) => {
-  const { name, sku, description, category, prices, unitOfMeasure, reorderLevel, status } = req.body;
+  const { 
+    name, sku, description, category, prices, costPrice,
+    leadTimeDays, safetyStockDays, minOrderQuantity,
+    unitOfMeasure, reorderLevel, status 
+  } = req.body;
 
-  const productExists = await Product.findOne({ sku });
+  const skuQuery = { sku };
+  if (req.company) skuQuery.company = req.company._id;
+
+  const productExists = await Product.findOne(skuQuery);
   if (productExists) {
     res.status(400);
     throw new Error('Product with this SKU already exists');
   }
 
   const product = await Product.create({
-    name, sku, description, category, prices, unitOfMeasure, reorderLevel, status
+    name, sku, description, category, prices, 
+    costPrice: costPrice !== undefined ? costPrice : (prices?.[0]?.amount || 0),
+    leadTimeDays: leadTimeDays || 4,
+    safetyStockDays: safetyStockDays || 3,
+    minOrderQuantity: minOrderQuantity || 1,
+    unitOfMeasure, reorderLevel, status,
+    company: req.company?._id,
+    owner: req.user._id
   });
 
   res.status(201).json(product);
@@ -46,7 +64,10 @@ const createProduct = asyncHandler(async (req, res) => {
 // @route   GET /api/v1/products/:id
 // @access  Private
 const getProductById = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
+  const query = { _id: req.params.id };
+  if (req.company) query.company = req.company._id;
+
+  const product = await Product.findOne(query);
   if (product) {
     res.json(product);
   } else {
@@ -59,13 +80,22 @@ const getProductById = asyncHandler(async (req, res) => {
 // @route   PUT /api/v1/products/:id
 // @access  Private
 const updateProduct = asyncHandler(async (req, res) => {
-  const { name, sku, description, category, prices, unitOfMeasure, reorderLevel, status } = req.body;
+  const { 
+    name, sku, description, category, prices, costPrice,
+    leadTimeDays, safetyStockDays, minOrderQuantity,
+    unitOfMeasure, reorderLevel, status 
+  } = req.body;
 
-  const product = await Product.findById(req.params.id);
+  const query = { _id: req.params.id };
+  if (req.company) query.company = req.company._id;
+
+  const product = await Product.findOne(query);
 
   if (product) {
     if (sku && sku !== product.sku) {
-      const productExists = await Product.findOne({ sku });
+      const skuQuery = { sku };
+      if (req.company) skuQuery.company = req.company._id;
+      const productExists = await Product.findOne(skuQuery);
       if (productExists) {
         res.status(400);
         throw new Error('Product with this SKU already exists');
@@ -77,6 +107,10 @@ const updateProduct = asyncHandler(async (req, res) => {
     product.description = description !== undefined ? description : product.description;
     product.category = category !== undefined ? category : product.category;
     product.prices = prices !== undefined ? prices : product.prices;
+    if (costPrice !== undefined) product.costPrice = costPrice;
+    if (leadTimeDays !== undefined) product.leadTimeDays = leadTimeDays;
+    if (safetyStockDays !== undefined) product.safetyStockDays = safetyStockDays;
+    if (minOrderQuantity !== undefined) product.minOrderQuantity = minOrderQuantity;
     product.unitOfMeasure = unitOfMeasure !== undefined ? unitOfMeasure : product.unitOfMeasure;
     product.reorderLevel = reorderLevel !== undefined ? reorderLevel : product.reorderLevel;
     product.status = status || product.status;
@@ -93,7 +127,10 @@ const updateProduct = asyncHandler(async (req, res) => {
 // @route   DELETE /api/v1/products/:id
 // @access  Private
 const deleteProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findById(req.params.id);
+  const query = { _id: req.params.id };
+  if (req.company) query.company = req.company._id;
+
+  const product = await Product.findOne(query);
 
   if (!product) {
     res.status(404);

@@ -4,12 +4,15 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1',
 });
 
-// Since Member 4 handles auth, I'll add a dummy interceptor or just assume no auth for testing
-// In reality, this would attach the JWT token from localStorage
+// Interceptor to attach JWT token and active company header
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  const companyId = localStorage.getItem('companyId');
+  if (companyId) {
+    config.headers['x-company-id'] = companyId;
   }
   return config;
 });

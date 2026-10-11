@@ -7,9 +7,10 @@ const {
   fulfillReservation
 } = require('../controllers/reservation.controller');
 
-const { protect } = require('../middleware/auth.middleware');
+const { protect, requireCompany } = require('../middleware/auth.middleware');
 
 router.use(protect);
+router.use(requireCompany);
 
 router.route('/')
   .post(createReservation)

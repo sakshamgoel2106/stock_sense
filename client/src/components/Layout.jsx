@@ -5,13 +5,14 @@ import {
   ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft, Sliders, 
   LogOut, UserCircle, BookOpen, Menu, X,
   Clock, TrendingUp, DollarSign, Bookmark, CheckSquare, ClipboardCheck,
-  Search, Bell, Settings
+  Search, Bell, Settings, Brain, Sparkles, Users, Building2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import AICopilotWidget from './AICopilotWidget';
 
 const Layout = () => {
-  const { user, logout } = useAuth();
+  const { user, company, role, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -53,14 +54,18 @@ const Layout = () => {
     }
   };
 
-  const isManagerOrAdmin = user?.role === 'MANAGER' || user?.role === 'ADMIN';
+  const isCompanyAdmin = role === 'COMPANY_ADMIN' || role === 'ADMIN' || user?.role === 'COMPANY_ADMIN' || user?.role === 'ADMIN';
+  const isManager = role === 'MANAGER' || user?.role === 'MANAGER' || isCompanyAdmin;
+  const displayRoleLabel = isCompanyAdmin ? 'Company Admin' : (isManager ? 'Manager' : 'Worker');
 
   const navLinks = [
     { to: "/", icon: <LayoutDashboard size={20} />, label: "Dashboard" },
+    { to: "/intelligence", icon: <Brain size={20} className="text-indigo-600" />, label: "AI Intelligence", badge: "AI" },
+    ...(isManager ? [{ to: "/team", icon: <Users size={20} />, label: "Team Management" }] : []),
     { to: "/products", icon: <Package size={20} />, label: "Products" },
     { to: "/warehouses", icon: <MapPin size={20} />, label: "Warehouses" },
     { to: "/stock-overview", icon: <BarChart3 size={20} />, label: "Stock Overview" },
-    ...(isManagerOrAdmin ? [{ to: "/ledger", icon: <BookOpen size={20} />, label: "Stock Ledger" }] : []),
+    ...(isManager ? [{ to: "/ledger", icon: <BookOpen size={20} />, label: "Stock Ledger" }] : []),
   ];
 
   const operationLinks = [
@@ -71,7 +76,7 @@ const Layout = () => {
   ];
 
   const advancedLinks = [
-    ...(isManagerOrAdmin ? [
+    ...(isManager ? [
       { to: "/aging", icon: <Clock size={20} />, label: "Stock Aging" },
       { to: "/forecasting", icon: <TrendingUp size={20} />, label: "Forecasting" },
       { to: "/valuation", icon: <DollarSign size={20} />, label: "Valuation" },
@@ -79,21 +84,29 @@ const Layout = () => {
     ] : []),
     { to: "/reservations", icon: <Bookmark size={20} />, label: "Reservations" },
     { to: "/audits", icon: <ClipboardCheck size={20} />, label: "Smart Audits" },
+    { to: "/settings", icon: <Settings size={20} />, label: "Company Settings" },
   ];
 
-  const NavItem = ({ to, icon, label }) => {
+  const NavItem = ({ to, icon, label, badge }) => {
     const isActive = location.pathname === to || (to !== '/' && location.pathname.startsWith(to));
     return (
       <Link 
         to={to} 
         onClick={() => setMobileMenuOpen(false)}
-        className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${
+        className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
           isActive 
             ? 'bg-indigo-50 text-indigo-700 font-medium' 
             : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'
         }`}
       >
-        {icon} {label}
+        <div className="flex items-center gap-3">
+          {icon} {label}
+        </div>
+        {badge && (
+          <span className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
+            {badge}
+          </span>
+        )}
       </Link>
     );
   };
@@ -155,7 +168,7 @@ const Layout = () => {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-gray-900 truncate">{user?.name}</p>
-            <p className="text-xs font-medium text-gray-500 truncate bg-gray-200 inline-block px-2 py-0.5 rounded-full mt-0.5">{user?.role}</p>
+            <p className="text-xs font-semibold text-indigo-700 bg-indigo-50 inline-block px-2 py-0.5 rounded-full mt-0.5">{displayRoleLabel}</p>
           </div>
         </div>
       </aside>
@@ -171,6 +184,14 @@ const Layout = () => {
           <h1 className="truncate text-lg font-semibold text-gray-900 hidden md:block">
             Welcome back, <span className="text-indigo-600">{user?.name?.split(" ")[0] || "User"}</span> 👋
           </h1>
+
+          {company && (
+            <div className="hidden lg:flex items-center gap-1.5 bg-indigo-50/80 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold">
+              <Building2 size={13} className="text-indigo-600" />
+              <span>{company.name}</span>
+              <span className="text-[10px] bg-indigo-200 text-indigo-800 px-1.5 py-0.2 rounded font-mono ml-1">{company.code}</span>
+            </div>
+          )}
           
           <div className="md:hidden flex items-center gap-2 text-indigo-600 font-bold text-lg">
             <Package size={20} />
@@ -279,11 +300,11 @@ const Layout = () => {
                     <p className="text-xs text-gray-500 truncate">{user?.email}</p>
                   </div>
                   <div className="py-1">
-                    <button onClick={() => { setIsProfileOpen(false); toast.success('Profile settings opened'); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                    <button onClick={() => { setIsProfileOpen(false); navigate('/profile'); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                       <UserCircle size={16} /> My Profile
                     </button>
-                    <button onClick={() => { setIsProfileOpen(false); toast('Settings feature coming soon!', { icon: '⚙️' }); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-                      <Settings size={16} /> Preferences
+                    <button onClick={() => { setIsProfileOpen(false); navigate('/settings'); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                      <Settings size={16} /> Company Settings
                     </button>
                   </div>
                   <div className="py-1 border-t border-gray-50">
@@ -304,6 +325,9 @@ const Layout = () => {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <Outlet />
         </main>
+
+        {/* Global Floating AI Copilot Chatbot */}
+        <AICopilotWidget />
       </div>
     </div>
   );
