@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Search, AlertTriangle, CheckCircle, XCircle, Package, Database, AlertCircle } from 'lucide-react';
 import api from '../lib/api';
+import { useCountry } from '../context/CountryContext';
 import FeatureGuide from '../components/FeatureGuide';
 
 const StockOverview = () => {
+  const { selectedCountry, countryMeta, changeCountry } = useCountry();
   const [stockLevels, setStockLevels] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +50,16 @@ const StockOverview = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [search, selectedWarehouse]);
 
+  const displayedWarehouses = selectedCountry === 'ALL'
+    ? warehouses
+    : warehouses.filter(w => (w.countryCode || 'IN').toUpperCase() === selectedCountry.toUpperCase());
+
+  const displayedStock = stockLevels.filter(item => {
+    if (selectedCountry === 'ALL') return true;
+    const cc = item.warehouse?.countryCode || 'IN';
+    return cc.toUpperCase() === selectedCountry.toUpperCase();
+  });
+
   const getStockStatus = (quantity, reorderLevel) => {
     if (quantity <= 0) {
       return { label: 'Out of Stock', icon: XCircle, variant: 'destructive', dot: 'bg-red-500', bg: 'bg-red-50 text-red-700 border-red-200' };
@@ -58,11 +70,11 @@ const StockOverview = () => {
     return { label: 'In Stock', icon: CheckCircle, variant: 'success', dot: 'bg-green-500', bg: 'bg-green-50 text-green-700 border-green-200' };
   };
 
-  // KPI Calculations
-  const totalItems = stockLevels.length;
-  const totalQuantity = stockLevels.reduce((acc, item) => acc + item.quantity, 0);
-  const outOfStockCount = stockLevels.filter(item => item.quantity <= 0).length;
-  const lowStockCount = stockLevels.filter(item => item.quantity > 0 && item.quantity <= (item.product?.reorderLevel || 0)).length;
+  // KPI Calculations based on displayedStock
+  const totalItems = displayedStock.length;
+  const totalQuantity = displayedStock.reduce((acc, item) => acc + item.quantity, 0);
+  const outOfStockCount = displayedStock.filter(item => item.quantity <= 0).length;
+  const lowStockCount = displayedStock.filter(item => item.quantity > 0 && item.quantity <= (item.product?.reorderLevel || 0)).length;
 
   return (
     <div className="space-y-6">
@@ -84,6 +96,26 @@ const StockOverview = () => {
           ]}
           proTip="Workers only see stock records for facilities assigned to their profile, protecting sensitive cross-hub operations."
         />
+      </div>
+
+      {/* Active Country Scope Banner */}
+      <div className="bg-white rounded-xl p-3 border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{countryMeta.flag}</span>
+          <span className="font-semibold text-gray-700">
+            {selectedCountry === 'ALL'
+              ? 'Showing inventory matrix across Global Enterprise'
+              : `Scoped to ${countryMeta.name} (${displayedStock.length} SKU locations)`}
+          </span>
+        </div>
+        {selectedCountry !== 'ALL' && (
+          <button
+            onClick={() => changeCountry('ALL')}
+            className="text-indigo-600 hover:text-indigo-800 font-bold underline"
+          >
+            Show All Countries
+          </button>
+        )}
       </div>
 
       {/* Premium KPI Cards */}
@@ -152,8 +184,8 @@ const StockOverview = () => {
             value={selectedWarehouse}
             onChange={(e) => setSelectedWarehouse(e.target.value)}
           >
-            <option value="">All Warehouses</option>
-            {warehouses.map(w => (
+            <option value="">{selectedCountry === 'ALL' ? 'All Warehouses' : `All ${countryMeta.name} Warehouses`}</option>
+            {displayedWarehouses.map(w => (
               <option key={w._id} value={w._id}>{w.name} ({w.code})</option>
             ))}
           </select>
@@ -170,11 +202,11 @@ const StockOverview = () => {
             <div className="flex justify-center items-center h-48 text-gray-500 text-sm">
               Loading inventory data...
             </div>
-          ) : stockLevels.length === 0 ? (
+          ) : displayedStock.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-500">
               <AlertTriangle className="h-8 w-8 text-gray-300 mb-3" />
-              <p className="text-sm font-medium text-gray-900">No stock records found</p>
-              <p className="text-xs mt-1">Adjust your filters to see more results.</p>
+              <p className="text-sm font-medium text-gray-900">No stock records found in {countryMeta.name}</p>
+              <p className="text-xs mt-1">Adjust your filters or switch jurisdiction from the top dropdown.</p>
             </div>
           ) : (
             <table className="w-full text-sm text-left">
@@ -188,7 +220,7 @@ const StockOverview = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {stockLevels.map((record) => {
+                {displayedStock.map((record) => {
                   const product = record.product || {};
                   const warehouse = record.warehouse || {};
                   const status = getStockStatus(record.quantity, product.reorderLevel);

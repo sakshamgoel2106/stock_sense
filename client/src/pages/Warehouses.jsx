@@ -3,10 +3,12 @@ import { Link } from 'react-router-dom';
 import { Plus, Edit, Trash2, MapPin, FileSpreadsheet } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { useCountry } from '../context/CountryContext';
 import BulkImportModal from '../components/BulkImportModal';
 
 const Warehouses = () => {
   const { user, role } = useAuth();
+  const { selectedCountry, countryMeta, changeCountry } = useCountry();
   const isCompanyAdmin = role === 'COMPANY_ADMIN' || role === 'ADMIN' || user?.role === 'COMPANY_ADMIN' || user?.role === 'ADMIN';
 
   const [warehouses, setWarehouses] = useState([]);
@@ -30,6 +32,10 @@ const Warehouses = () => {
   useEffect(() => {
     fetchWarehouses();
   }, []);
+
+  const displayedWarehouses = selectedCountry === 'ALL'
+    ? warehouses
+    : warehouses.filter(w => (w.countryCode || 'IN').toUpperCase() === selectedCountry.toUpperCase());
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this warehouse?')) {
@@ -64,6 +70,26 @@ const Warehouses = () => {
         )}
       </div>
 
+      {/* Active Country Filter Banner */}
+      <div className="bg-white rounded-xl p-3 border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{countryMeta.flag}</span>
+          <span className="font-semibold text-gray-700">
+            {selectedCountry === 'ALL'
+              ? 'Showing all facilities across Global Enterprise'
+              : `Scoped to ${countryMeta.name} (${displayedWarehouses.length} facilities)`}
+          </span>
+        </div>
+        {selectedCountry !== 'ALL' && (
+          <button
+            onClick={() => changeCountry('ALL')}
+            className="text-indigo-600 hover:text-indigo-800 font-bold underline"
+          >
+            Show All Countries
+          </button>
+        )}
+      </div>
+
       {error && (
         <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">
           {error}
@@ -74,15 +100,20 @@ const Warehouses = () => {
         <div className="flex justify-center items-center h-64 text-gray-500">
           Loading warehouses...
         </div>
-      ) : warehouses.length === 0 ? (
+      ) : displayedWarehouses.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 flex flex-col items-center justify-center text-gray-500">
           <MapPin size={48} className="text-gray-300 mb-4" />
-          <p className="text-lg font-medium">No warehouses found</p>
-          <p className="text-sm">Create a new warehouse to get started</p>
+          <p className="text-lg font-medium">No warehouses found in {countryMeta.name}</p>
+          <p className="text-sm">Create a new facility or switch jurisdiction from the top dropdown</p>
+          {isCompanyAdmin && (
+            <Link to="/warehouses/new" className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold shadow text-xs">
+              + Add warehouse in {countryMeta.name}
+            </Link>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {warehouses.map((warehouse) => (
+          {displayedWarehouses.map((warehouse) => (
             <div key={warehouse._id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col h-full hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-4">
                 <div>

@@ -5,14 +5,17 @@ import {
   ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft, Sliders, 
   LogOut, UserCircle, BookOpen, Menu, X,
   Clock, TrendingUp, DollarSign, Bookmark, CheckSquare, ClipboardCheck,
-  Search, Bell, Settings, Brain, Sparkles, Users, Building2, Receipt
+  Search, Bell, Settings, Brain, Sparkles, Users, Building2, Receipt,
+  ChevronDown, Check, Globe
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useCountry } from '../context/CountryContext';
 import toast from 'react-hot-toast';
 import AICopilotWidget from './AICopilotWidget';
 
 const Layout = () => {
   const { user, company, role, logout } = useAuth();
+  const { selectedCountry, changeCountry, countryMeta, availableCountries } = useCountry();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -22,11 +25,13 @@ const Layout = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCountryOpen, setIsCountryOpen] = useState(false);
   const [notifications, setNotifications] = useState([]); // Empty for now until a real backend notification system is built
   
   const searchRef = useRef(null);
   const notifRef = useRef(null);
   const profileRef = useRef(null);
+  const countryRef = useRef(null);
 
   useEffect(() => {
     // Close dropdowns when clicking outside
@@ -34,6 +39,7 @@ const Layout = () => {
       if (searchRef.current && !searchRef.current.contains(event.target)) setIsSearchOpen(false);
       if (notifRef.current && !notifRef.current.contains(event.target)) setIsNotifOpen(false);
       if (profileRef.current && !profileRef.current.contains(event.target)) setIsProfileOpen(false);
+      if (countryRef.current && !countryRef.current.contains(event.target)) setIsCountryOpen(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -201,6 +207,66 @@ const Layout = () => {
           
           <div className="ml-auto flex items-center gap-2 sm:gap-4 relative">
             
+            {/* Global MNC Operating Country Selector */}
+            <div className="relative" ref={countryRef}>
+              <button
+                onClick={() => setIsCountryOpen(!isCountryOpen)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 text-xs sm:text-sm font-semibold transition-all shadow-xs hover:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                title="Switch Operating Country / MNC Jurisdiction"
+              >
+                <span className="text-base sm:text-lg leading-none">{countryMeta.flag}</span>
+                <span className="font-bold hidden sm:inline">{countryMeta.code === 'ALL' ? 'Global' : countryMeta.name}</span>
+                <span className="font-bold sm:hidden">{countryMeta.code}</span>
+                <span className="text-[10px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-bold hidden md:inline">
+                  {countryMeta.currencySymbol} {countryMeta.currency}
+                </span>
+                <ChevronDown size={14} className={`text-gray-400 transition-transform ${isCountryOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isCountryOpen && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="px-3 py-1.5 border-b border-gray-100">
+                    <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider">MNC Operating Jurisdiction</p>
+                    <p className="text-xs text-gray-500">Filter panel data to a specific country</p>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto py-1">
+                    {availableCountries.map((c) => {
+                      const isSelected = selectedCountry === c.code;
+                      return (
+                        <button
+                          key={c.code}
+                          onClick={() => {
+                            changeCountry(c.code);
+                            setIsCountryOpen(false);
+                            toast.success(c.code === 'ALL' ? 'Switched to Global Enterprise view' : `Switched to ${c.name} jurisdiction`);
+                          }}
+                          className={`w-full flex items-center justify-between px-3 py-2 text-left text-xs sm:text-sm hover:bg-indigo-50/70 transition-colors ${
+                            isSelected ? 'bg-indigo-50 text-indigo-700 font-bold' : 'text-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-lg leading-none">{c.flag}</span>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-gray-900">{c.name}</span>
+                                {c.code === 'ALL' && <span className="text-[9px] bg-slate-100 text-slate-700 px-1 rounded font-bold">ALL</span>}
+                              </div>
+                              {c.code !== 'ALL' && (
+                                <span className="text-[11px] text-gray-400 block font-mono">
+                                  {c.currency} ({c.currencySymbol}) • {c.taxSystem}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {isSelected && <Check size={16} className="text-indigo-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Global Search */}
             <div className="relative flex items-center" ref={searchRef}>
               <div className={`overflow-hidden transition-all duration-300 ease-in-out flex items-center ${isSearchOpen ? 'w-48 sm:w-64 opacity-100 mr-2' : 'w-0 opacity-0'}`}>

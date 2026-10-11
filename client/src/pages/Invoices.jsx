@@ -13,8 +13,10 @@ import FeatureGuide from '../components/FeatureGuide';
 import InvoiceDetailModal from '../components/InvoiceDetailModal';
 import CreateInvoiceModal from '../components/CreateInvoiceModal';
 import { MNC_COUNTRIES, formatCurrency } from '../lib/countries';
+import { useCountry } from '../context/CountryContext';
 
 const Invoices = () => {
+  const { selectedCountry, changeCountry } = useCountry();
   const [invoices, setInvoices] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [stats, setStats] = useState({
@@ -30,7 +32,12 @@ const Invoices = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [warehouseFilter, setWarehouseFilter] = useState('ALL');
-  const [countryFilter, setCountryFilter] = useState('ALL');
+  const [countryFilter, setCountryFilter] = useState(selectedCountry);
+
+  // Sync countryFilter when global selectedCountry changes
+  useEffect(() => {
+    setCountryFilter(selectedCountry);
+  }, [selectedCountry]);
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -357,7 +364,10 @@ const Invoices = () => {
               <span className="text-slate-400 font-semibold">Country:</span>
               <select
                 value={countryFilter}
-                onChange={(e) => setCountryFilter(e.target.value)}
+                onChange={(e) => {
+                  setCountryFilter(e.target.value);
+                  changeCountry(e.target.value);
+                }}
                 className="bg-transparent text-slate-800 font-bold text-xs focus:outline-none cursor-pointer"
               >
                 <option value="ALL">🌐 All Jurisdictions</option>

@@ -112,8 +112,17 @@ export const MNC_COUNTRIES = [
   }
 ];
 
+export const GLOBAL_COUNTRY = {
+  code: 'ALL',
+  name: 'Global (All Countries)',
+  flag: '🌐',
+  currency: 'USD',
+  currencySymbol: '$',
+  taxSystem: 'GLOBAL'
+};
+
 export const getCountryByCode = (code) => {
-  if (!code) return MNC_COUNTRIES[0];
+  if (!code || code.toUpperCase() === 'ALL') return GLOBAL_COUNTRY;
   const found = MNC_COUNTRIES.find(c => c.code.toUpperCase() === code.toUpperCase());
   return found || MNC_COUNTRIES[0];
 };

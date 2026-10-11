@@ -7,14 +7,18 @@ import {
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import { MNC_COUNTRIES, getCountryByCode, formatCurrency } from '../lib/countries';
+import { useCountry } from '../context/CountryContext';
 
 const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
+  const { selectedCountry } = useCountry();
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
 
   // Multi-Country MNC State
-  const [selectedCountryCode, setSelectedCountryCode] = useState('IN');
+  const [selectedCountryCode, setSelectedCountryCode] = useState(() => {
+    return (selectedCountry && selectedCountry !== 'ALL') ? selectedCountry : 'IN';
+  });
   const activeCountry = getCountryByCode(selectedCountryCode);
 
   // Form State
@@ -45,9 +49,13 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
 
   useEffect(() => {
     if (isOpen) {
+      if (selectedCountry && selectedCountry !== 'ALL') {
+        setSelectedCountryCode(selectedCountry);
+        handleCountryChange(selectedCountry);
+      }
       loadDependencies();
     }
-  }, [isOpen]);
+  }, [isOpen, selectedCountry]);
 
   const loadDependencies = async () => {
     try {

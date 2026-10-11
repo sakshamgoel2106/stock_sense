@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import api from '../lib/api';
+import { useCountry } from '../context/CountryContext';
 
 const StockLedger = () => {
+  const { selectedCountry, countryMeta, changeCountry } = useCountry();
   const [ledger, setLedger] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,6 +28,10 @@ const StockLedger = () => {
   }, []);
 
   const filteredLedger = ledger.filter(entry => {
+    if (selectedCountry !== 'ALL') {
+      const cc = entry.warehouse?.countryCode || 'IN';
+      if (cc.toUpperCase() !== selectedCountry.toUpperCase()) return false;
+    }
     const search = searchTerm.toLowerCase();
     return (
       entry.product?.name?.toLowerCase().includes(search) ||
@@ -38,7 +44,15 @@ const StockLedger = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">Stock Ledger</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 tracking-tight flex items-center gap-2">
+            Stock Ledger
+            <span className="text-xs bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-full font-bold">
+              {countryMeta.flag} {selectedCountry === 'ALL' ? 'Global' : countryMeta.code}
+            </span>
+          </h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Granular chronological audit trail of all warehouse movements.</p>
+        </div>
         
         <div className="relative w-full sm:w-64">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -52,6 +66,26 @@ const StockLedger = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+      </div>
+
+      {/* Active Country Scope Banner */}
+      <div className="bg-white rounded-xl p-3 border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{countryMeta.flag}</span>
+          <span className="font-semibold text-gray-700">
+            {selectedCountry === 'ALL'
+              ? 'Showing audit movements across Global Enterprise'
+              : `Scoped to ${countryMeta.name} (${filteredLedger.length} movement records)`}
+          </span>
+        </div>
+        {selectedCountry !== 'ALL' && (
+          <button
+            onClick={() => changeCountry('ALL')}
+            className="text-indigo-600 hover:text-indigo-800 font-bold underline"
+          >
+            Show All Countries
+          </button>
+        )}
       </div>
 
       {error && (

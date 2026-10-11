@@ -2,19 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../lib/api';
 import { MNC_COUNTRIES, getCountryByCode } from '../lib/countries';
+import { useCountry } from '../context/CountryContext';
 
 const WarehouseForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { selectedCountry } = useCountry();
   const isEdit = Boolean(id);
+
+  const defaultCountry = (selectedCountry && selectedCountry !== 'ALL')
+    ? getCountryByCode(selectedCountry)
+    : getCountryByCode('IN');
 
   const [formData, setFormData] = useState({
     name: '',
     code: '',
     location: '',
-    country: 'India',
-    countryCode: 'IN',
-    currency: 'INR',
+    country: defaultCountry.name,
+    countryCode: defaultCountry.code,
+    currency: defaultCountry.currency,
     isActive: true
   });
   

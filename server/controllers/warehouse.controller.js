@@ -13,6 +13,18 @@ const getWarehouses = asyncHandler(async (req, res) => {
   if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
     query._id = { $in: req.membership.warehouseIds };
   }
+  if (req.query.countryCode && req.query.countryCode !== 'ALL') {
+    const code = req.query.countryCode.toUpperCase();
+    if (code === 'IN') {
+      query.$or = [
+        { countryCode: 'IN' },
+        { countryCode: { $exists: false } },
+        { countryCode: null }
+      ];
+    } else {
+      query.countryCode = code;
+    }
+  }
   const warehouses = await Warehouse.find(query).sort({ createdAt: -1 });
   res.json(warehouses);
 });
