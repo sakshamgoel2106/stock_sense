@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const asyncHandler = require('express-async-handler');
 const User = require('../models/User');
 const Membership = require('../models/Membership');
@@ -25,7 +26,9 @@ const protect = asyncHandler(async (req, res, next) => {
       const requestedCompanyId = req.headers['x-company-id'];
       let membership = null;
 
-      if (requestedCompanyId) {
+      const isValidCompanyId = requestedCompanyId && mongoose.Types.ObjectId.isValid(requestedCompanyId) && /^[0-9a-fA-F]{24}$/.test(requestedCompanyId);
+
+      if (isValidCompanyId) {
         membership = await Membership.findOne({
           userId: req.user._id,
           companyId: requestedCompanyId,

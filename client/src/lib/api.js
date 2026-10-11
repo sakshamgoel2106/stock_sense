@@ -11,8 +11,10 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
   const companyId = localStorage.getItem('companyId');
-  if (companyId) {
+  if (companyId && /^[0-9a-fA-F]{24}$/.test(companyId)) {
     config.headers['x-company-id'] = companyId;
+  } else if (companyId) {
+    localStorage.removeItem('companyId');
   }
   return config;
 });
