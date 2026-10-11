@@ -25,7 +25,6 @@ const invoiceSchema = new mongoose.Schema({
     email: { type: String, trim: true, default: '' },
     phone: { type: String, trim: true, default: '' },
     gstin: { type: String, trim: true, uppercase: true, default: '' },
-    taxId: { type: String, trim: true, uppercase: true, default: '' },
     address: {
       street: { type: String, default: '' },
       city: { type: String, default: '' },
@@ -35,17 +34,11 @@ const invoiceSchema = new mongoose.Schema({
     }
   },
   items: [invoiceItemSchema],
-  country: { type: String, default: 'India' },
-  countryCode: { type: String, default: 'IN', uppercase: true },
-  taxSystem: { type: String, default: 'GST' }, // 'GST', 'SALES_TAX', 'VAT'
-  currencySymbol: { type: String, default: '₹' },
   subtotal: { type: Number, required: true, min: 0 },
   taxBreakdown: {
     cgst: { type: Number, default: 0 },
     sgst: { type: Number, default: 0 },
     igst: { type: Number, default: 0 },
-    stateTax: { type: Number, default: 0 },
-    vatAmount: { type: Number, default: 0 },
     totalTax: { type: Number, default: 0 }
   },
   isInterState: { type: Boolean, default: false },
@@ -61,10 +54,7 @@ const invoiceSchema = new mongoose.Schema({
   paidAmount: { type: Number, default: 0 },
   paymentMethod: {
     type: String,
-    enum: [
-      'UPI', 'BANK_TRANSFER', 'CASH', 'CREDIT_CARD', 'NET_BANKING', 
-      'CHEQUE', 'WIRE_TRANSFER', 'ACH', 'SEPA', 'PAYNOW', 'PENDING'
-    ],
+    enum: ['UPI', 'BANK_TRANSFER', 'CASH', 'CREDIT_CARD', 'NET_BANKING', 'CHEQUE', 'PENDING'],
     default: 'PENDING'
   },
   paymentReference: { type: String, default: '' },

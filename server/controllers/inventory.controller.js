@@ -48,8 +48,8 @@ const getOperations = asyncHandler(async (req, res) => {
     ];
   }
   const operations = await Operation.find(query)
-    .populate('sourceWarehouse', 'name code country countryCode currency')
-    .populate('destinationWarehouse', 'name code country countryCode currency')
+    .populate('sourceWarehouse', 'name code')
+    .populate('destinationWarehouse', 'name code')
     .populate('items.product', 'name sku prices')
     .populate('invoice', 'invoiceNumber status totalAmount')
     .sort({ createdAt: -1 });
@@ -121,7 +121,7 @@ const getStock = asyncHandler(async (req, res) => {
 
   const stock = await Stock.find(filter)
     .populate('product', 'name sku prices unitOfMeasure reorderLevel status')
-    .populate('warehouse', 'name location code country countryCode currency');
+    .populate('warehouse', 'name location code');
   res.json(stock);
 });
 
@@ -148,7 +148,7 @@ const getLedger = asyncHandler(async (req, res) => {
 
   const ledger = await StockLedger.find(filter)
     .populate('product', 'name sku')
-    .populate('warehouse', 'name code country countryCode currency')
+    .populate('warehouse', 'name')
     .populate('operation', 'type')
     .populate('user', 'name')
     .sort({ createdAt: -1 });
@@ -273,7 +273,7 @@ const getValuation = asyncHandler(async (req, res) => {
 
   const populated = await StockLayer.populate(valuationReport, [
     { path: '_id.product', select: 'name sku category', model: 'Product' },
-    { path: '_id.warehouse', select: 'name code country countryCode currency', model: 'Warehouse' }
+    { path: '_id.warehouse', select: 'name', model: 'Warehouse' }
   ]);
 
   const result = populated.map(item => ({

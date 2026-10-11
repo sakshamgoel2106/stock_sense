@@ -24,11 +24,6 @@ const Settings = () => {
   const [phone, setPhone] = useState(company?.phone || '+91 98200 12345');
   const [email, setEmail] = useState(company?.email || 'operations@stocksense.in');
 
-  // MNC Multi-Country Settings
-  const [isMNC, setIsMNC] = useState(true);
-  const [primaryCountry, setPrimaryCountry] = useState('IN');
-  const [operatingCountries, setOperatingCountries] = useState([]);
-
   // Policy Settings
   const [currency, setCurrency] = useState(company?.settings?.currency || 'INR');
   const [timezone, setTimezone] = useState(company?.settings?.timezone || 'Asia/Kolkata');
@@ -61,9 +56,6 @@ const Settings = () => {
           setPincode(c.pincode || '');
           setPhone(c.phone || '');
           setEmail(c.email || '');
-          setIsMNC(c.isMNC ?? true);
-          setPrimaryCountry(c.primaryCountry || 'IN');
-          setOperatingCountries(c.operatingCountries || []);
           if (c.settings) {
             setCurrency(c.settings.currency || 'INR');
             setTimezone(c.settings.timezone || 'Asia/Kolkata');
@@ -99,8 +91,6 @@ const Settings = () => {
         pincode,
         phone,
         email,
-        isMNC,
-        primaryCountry,
         settings: {
           currency,
           timezone,
@@ -109,7 +99,7 @@ const Settings = () => {
           valuationMethod
         }
       });
-      toast.success('Company settings & multinational policies saved!');
+      toast.success('Company settings & enterprise policies saved!');
     } catch (err) {
       toast.error(err?.response?.data?.message || 'Failed to save settings');
     } finally {
@@ -276,126 +266,6 @@ const Settings = () => {
                 />
                 <Mail size={15} className="absolute left-3 top-3 text-gray-400" />
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Section 1.5: Multinational Corporation (MNC) Operations & Jurisdictions */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-8 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
-                <Globe size={22} />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-bold text-gray-900">Multinational Corporation (MNC) Governance</h2>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold uppercase">
-                    Active
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Global multi-currency billing, localized statutory tax regimes, and cross-border facility network
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-bold text-gray-700">MNC Mode:</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isMNC}
-                  onChange={(e) => setIsMNC(e.target.checked)}
-                  disabled={!isCompanyAdmin}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-              </label>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-2">
-                Primary Global Headquarters
-              </label>
-              <select
-                value={primaryCountry}
-                onChange={(e) => setPrimaryCountry(e.target.value)}
-                disabled={!isCompanyAdmin}
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold text-gray-800"
-              >
-                <option value="IN">🇮🇳 India (Global HQ / Central Operations)</option>
-                <option value="US">🇺🇸 United States (Americas Corp HQ)</option>
-                <option value="GB">🇬🇧 United Kingdom (EMEA Distribution HQ)</option>
-                <option value="DE">🇩🇪 Germany (European Union Continental HQ)</option>
-                <option value="AE">🇦🇪 United Arab Emirates (Middle East FZ-LLC)</option>
-                <option value="SG">🇸🇬 Singapore (Asia Pacific Regional HQ)</option>
-              </select>
-            </div>
-
-            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
-              <div>
-                <span className="font-bold text-slate-900 block">Cross-Border Inventory Sync</span>
-                <span className="text-[11px] text-slate-500">Live multi-hub ledger across INR, USD, GBP, EUR, AED, and SGD.</span>
-              </div>
-              <span className="px-2 py-1 rounded bg-indigo-100 text-indigo-800 font-mono font-bold text-xs">
-                6 REGIONS
-              </span>
-            </div>
-          </div>
-
-          {/* Operating Entities Grid */}
-          <div className="space-y-3 pt-2">
-            <h3 className="text-xs font-black uppercase tracking-wider text-gray-600">
-              Configured Operating Jurisdictions & Statutory Entities
-            </h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {[
-                { code: 'IN', flag: '🇮🇳', name: 'India', curr: 'INR (₹)', tax: 'GST (18%)', idLabel: 'GSTIN', idVal: '27AABCS1429B1Z1', hub: 'Bhiwandi & Pune' },
-                { code: 'US', flag: '🇺🇸', name: 'United States', curr: 'USD ($)', tax: 'Sales Tax', idLabel: 'Federal EIN', idVal: '12-8941029', hub: 'Los Angeles & Austin' },
-                { code: 'GB', flag: '🇬🇧', name: 'United Kingdom', curr: 'GBP (£)', tax: 'VAT (20%)', idLabel: 'HMRC VAT', idVal: 'GB 123 4567 89', hub: 'London & Midlands' },
-                { code: 'DE', flag: '🇩🇪', name: 'Germany (EU)', curr: 'EUR (€)', tax: 'MwSt (19%)', idLabel: 'USt-IdNr', idVal: 'DE 123456789', hub: 'Frankfurt Hub' },
-                { code: 'AE', flag: '🇦🇪', name: 'UAE', curr: 'AED (د.إ)', tax: 'VAT (5%)', idLabel: 'FTA TRN', idVal: '100 2489 1928 00003', hub: 'Dubai CommerCity' },
-                { code: 'SG', flag: '🇸🇬', name: 'Singapore', curr: 'SGD (S$)', tax: 'GST (9%)', idLabel: 'ACRA UEN', idVal: '201928374G', hub: 'Ocean Financial Hub' }
-              ].map(entity => (
-                <div 
-                  key={entity.code} 
-                  className={`p-3.5 rounded-xl border transition-all ${
-                    primaryCountry === entity.code 
-                      ? 'bg-indigo-50/60 border-indigo-300 ring-1 ring-indigo-300' 
-                      : 'bg-gray-50/80 border-gray-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{entity.flag}</span>
-                      <span className="font-bold text-xs text-gray-900">{entity.name}</span>
-                    </div>
-                    {primaryCountry === entity.code && (
-                      <span className="text-[9px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded uppercase">
-                        Primary HQ
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-2 space-y-1 text-[11px] text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Currency:</span>
-                      <span className="font-mono font-bold text-gray-900">{entity.curr}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Tax System:</span>
-                      <span className="font-semibold text-gray-800">{entity.tax}</span>
-                    </div>
-                    <div className="flex justify-between font-mono">
-                      <span>{entity.idLabel}:</span>
-                      <span className="font-bold text-indigo-700">{entity.idVal}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>

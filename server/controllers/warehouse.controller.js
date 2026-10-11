@@ -13,18 +13,6 @@ const getWarehouses = asyncHandler(async (req, res) => {
   if (req.membership && req.membership.role !== 'COMPANY_ADMIN' && req.membership.warehouseIds?.length > 0) {
     query._id = { $in: req.membership.warehouseIds };
   }
-  if (req.query.countryCode && req.query.countryCode !== 'ALL') {
-    const code = req.query.countryCode.toUpperCase();
-    if (code === 'IN') {
-      query.$or = [
-        { countryCode: 'IN' },
-        { countryCode: { $exists: false } },
-        { countryCode: null }
-      ];
-    } else {
-      query.countryCode = code;
-    }
-  }
   const warehouses = await Warehouse.find(query).sort({ createdAt: -1 });
   res.json(warehouses);
 });
@@ -33,10 +21,7 @@ const getWarehouses = asyncHandler(async (req, res) => {
 // @route   POST /api/v1/warehouses
 // @access  Private (COMPANY_ADMIN only)
 const createWarehouse = asyncHandler(async (req, res) => {
-  const { 
-    name, code, location, country = 'India', countryCode = 'IN', currency = 'INR', 
-    isActive, transitLeadTimeDays, transferCostPerUnit 
-  } = req.body;
+  const { name, code, location, isActive, transitLeadTimeDays, transferCostPerUnit } = req.body;
 
   const codeQuery = { code };
   if (req.company) codeQuery.company = req.company._id;
@@ -50,9 +35,6 @@ const createWarehouse = asyncHandler(async (req, res) => {
     name, 
     code, 
     location, 
-    country,
-    countryCode: countryCode.toUpperCase(),
-    currency: currency.toUpperCase(),
     isActive: isActive !== undefined ? isActive : true,
     transitLeadTimeDays: transitLeadTimeDays || 1,
     transferCostPerUnit: transferCostPerUnit || 2,
@@ -91,10 +73,7 @@ const getWarehouseById = asyncHandler(async (req, res) => {
 // @route   PUT /api/v1/warehouses/:id
 // @access  Private (COMPANY_ADMIN only)
 const updateWarehouse = asyncHandler(async (req, res) => {
-  const { 
-    name, code, location, country, countryCode, currency, 
-    isActive, transitLeadTimeDays, transferCostPerUnit 
-  } = req.body;
+  const { name, code, location, isActive, transitLeadTimeDays, transferCostPerUnit } = req.body;
 
   const query = { _id: req.params.id };
   if (req.company) query.company = req.company._id;
@@ -115,9 +94,6 @@ const updateWarehouse = asyncHandler(async (req, res) => {
     warehouse.name = name || warehouse.name;
     warehouse.code = code || warehouse.code;
     warehouse.location = location !== undefined ? location : warehouse.location;
-    if (country) warehouse.country = country;
-    if (countryCode) warehouse.countryCode = countryCode.toUpperCase();
-    if (currency) warehouse.currency = currency.toUpperCase();
     warehouse.isActive = isActive !== undefined ? isActive : warehouse.isActive;
     if (transitLeadTimeDays !== undefined) warehouse.transitLeadTimeDays = transitLeadTimeDays;
     if (transferCostPerUnit !== undefined) warehouse.transferCostPerUnit = transferCostPerUnit;
@@ -214,9 +190,6 @@ const createWarehousesBulk = asyncHandler(async (req, res) => {
         name,
         code,
         location: w.location || '',
-        country: w.country || 'India',
-        countryCode: (w.countryCode || (w.country === 'United States' ? 'US' : 'IN')).toUpperCase(),
-        currency: (w.currency || (w.country === 'United States' ? 'USD' : 'INR')).toUpperCase(),
         transitLeadTimeDays: isNaN(transitLeadTimeDays) ? 1 : transitLeadTimeDays,
         transferCostPerUnit: isNaN(transferCostPerUnit) ? 2 : transferCostPerUnit,
         isActive,

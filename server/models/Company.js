@@ -32,22 +32,6 @@ const companySchema = new mongoose.Schema({
   pincode: { type: String, default: '421302' },
   phone: { type: String, default: '+91 98200 12345' },
   email: { type: String, default: 'operations@stocksense.in' },
-  isMNC: { type: Boolean, default: true },
-  primaryCountry: { type: String, default: 'India' },
-  operatingCountries: [{
-    code: { type: String, uppercase: true, trim: true }, // 'IN', 'US', 'GB', 'AE', 'SG', 'DE'
-    name: { type: String }, // 'India', 'United States', etc.
-    currency: { type: String, default: 'INR' },
-    currencySymbol: { type: String, default: '₹' },
-    taxSystem: { type: String, default: 'GST' }, // 'GST', 'SALES_TAX', 'VAT'
-    taxIdName: { type: String, default: 'GSTIN' }, // 'GSTIN', 'EIN', 'VAT_NO', 'TRN', 'UEN'
-    taxIdNumber: { type: String, default: '' },
-    address: { type: String, default: '' },
-    city: { type: String, default: '' },
-    state: { type: String, default: '' },
-    postalCode: { type: String, default: '' },
-    isPrimary: { type: Boolean, default: false }
-  }],
   settings: {
     currency: { type: String, default: 'INR' },
     timezone: { type: String, default: 'Asia/Kolkata' },

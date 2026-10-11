@@ -3,14 +3,12 @@ import { Link } from 'react-router-dom';
 import { Plus, CheckCircle, Clock, Receipt, FileText } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
-import { useCountry } from '../context/CountryContext';
 import FeatureGuide from './FeatureGuide';
 import InvoiceDetailModal from './InvoiceDetailModal';
 import toast from 'react-hot-toast';
 
 const OperationList = ({ title, type, newLink }) => {
   const { user, role } = useAuth();
-  const { selectedCountry, countryMeta, changeCountry } = useCountry();
   const isCompanyAdmin = role === 'COMPANY_ADMIN' || role === 'ADMIN' || user?.role === 'COMPANY_ADMIN' || user?.role === 'ADMIN';
   const isManager = role === 'MANAGER' || user?.role === 'MANAGER' || isCompanyAdmin;
 
@@ -65,16 +63,6 @@ const OperationList = ({ title, type, newLink }) => {
   useEffect(() => {
     fetchOperations();
   }, [type]);
-
-  const displayedOperations = operations.filter(op => {
-    if (selectedCountry === 'ALL') return true;
-    const srcCc = op.sourceWarehouse?.countryCode;
-    const destCc = op.destinationWarehouse?.countryCode;
-    if (srcCc && srcCc.toUpperCase() === selectedCountry.toUpperCase()) return true;
-    if (destCc && destCc.toUpperCase() === selectedCountry.toUpperCase()) return true;
-    if (!srcCc && !destCc && selectedCountry === 'IN') return true;
-    return false;
-  });
 
   const handleValidate = async (id, isPendingTransfer = false) => {
     const confirmMsg = isPendingTransfer
@@ -183,26 +171,6 @@ const OperationList = ({ title, type, newLink }) => {
         </div>
       </div>
 
-      {/* Active Country Scope Banner */}
-      <div className="bg-white rounded-xl p-3 border border-gray-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs shadow-xs">
-        <div className="flex items-center gap-2">
-          <span className="text-base">{countryMeta.flag}</span>
-          <span className="font-semibold text-gray-700">
-            {selectedCountry === 'ALL'
-              ? `Showing all ${title.toLowerCase()} across Global Enterprise`
-              : `Scoped to ${countryMeta.name} (${displayedOperations.length} records)`}
-          </span>
-        </div>
-        {selectedCountry !== 'ALL' && (
-          <button
-            onClick={() => changeCountry('ALL')}
-            className="text-indigo-600 hover:text-indigo-800 font-bold underline"
-          >
-            Show All Countries
-          </button>
-        )}
-      </div>
-
       {error && (
         <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">
           {error}
@@ -213,10 +181,9 @@ const OperationList = ({ title, type, newLink }) => {
         <div className="flex justify-center items-center h-64 text-gray-500">
           Loading {title.toLowerCase()}...
         </div>
-      ) : displayedOperations.length === 0 ? (
+      ) : operations.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 flex flex-col items-center justify-center text-gray-500">
-          <p className="text-lg font-medium">No {title.toLowerCase()} found in {countryMeta.name}</p>
-          <p className="text-sm mt-1">Create a new {title.slice(0, -1).toLowerCase()} or switch jurisdiction from the top dropdown</p>
+          <p className="text-lg font-medium">No {title.toLowerCase()} found</p>
         </div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -233,7 +200,7 @@ const OperationList = ({ title, type, newLink }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {displayedOperations.map((op) => (
+                {operations.map((op) => (
                   <tr key={op._id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">{op._id.slice(-6).toUpperCase()}</div>

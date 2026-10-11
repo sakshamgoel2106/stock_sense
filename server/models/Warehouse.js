@@ -6,9 +6,6 @@ const warehouseSchema = new mongoose.Schema({
   name: { type: String, required: true },
   code: { type: String, required: true },
   location: { type: String },
-  country: { type: String, default: 'India' },
-  countryCode: { type: String, default: 'IN', uppercase: true },
-  currency: { type: String, default: 'INR' },
   transitLeadTimeDays: { type: Number, default: 1 },
   transferCostPerUnit: { type: Number, default: 2 },
   isActive: { type: Boolean, default: true }

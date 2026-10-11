@@ -4,7 +4,6 @@ import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
-import { CountryProvider } from './context/CountryContext';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ForgotPassword from './pages/auth/ForgotPassword';
@@ -42,9 +41,8 @@ import Invoices from './pages/Invoices';
 function App() {
   return (
     <AuthProvider>
-      <CountryProvider>
-        <Toaster position="top-right" />
-        <BrowserRouter>
+      <Toaster position="top-right" />
+      <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
@@ -103,7 +101,6 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
-      </CountryProvider>
     </AuthProvider>
   );
 }

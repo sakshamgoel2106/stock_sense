@@ -35,14 +35,7 @@ const generateInvoiceNumber = async (companyId) => {
 /**
  * Calculate line items, taxes and totals
  */
-const calculateInvoiceTotals = (
-  items, 
-  isInterState = false, 
-  shippingCharge = 0, 
-  discountTotal = 0, 
-  taxSystem = 'GST', 
-  countryCode = 'IN'
-) => {
+const calculateInvoiceTotals = (items, isInterState = false, shippingCharge = 0, discountTotal = 0) => {
   let subtotal = 0;
   let totalTax = 0;
   const processedItems = [];
@@ -50,8 +43,7 @@ const calculateInvoiceTotals = (
   for (const item of items) {
     const qty = Number(item.quantity) || 1;
     const price = Number(item.unitPrice) || 0;
-    const defaultRate = countryCode === 'US' ? 8.25 : countryCode === 'AE' ? 5 : countryCode === 'GB' ? 20 : countryCode === 'SG' ? 9 : 18;
-    const rate = Number(item.taxRate ?? defaultRate);
+    const rate = Number(item.taxRate ?? 18);
     const disc = Number(item.discount) || 0;
 
     const baseAmount = qty * price;
@@ -84,11 +76,9 @@ const calculateInvoiceTotals = (
 
   const taxBreakdown = {
     totalTax,
-    cgst: (taxSystem === 'GST' && countryCode === 'IN') ? (isInterState ? 0 : Math.round((totalTax / 2) * 100) / 100) : 0,
-    sgst: (taxSystem === 'GST' && countryCode === 'IN') ? (isInterState ? 0 : Math.round((totalTax / 2) * 100) / 100) : 0,
-    igst: (taxSystem === 'GST' && countryCode === 'IN') ? (isInterState ? totalTax : 0) : 0,
-    stateTax: taxSystem === 'SALES_TAX' ? Math.round(totalTax * 0.7 * 100) / 100 : 0,
-    vatAmount: taxSystem === 'VAT' ? totalTax : 0
+    cgst: isInterState ? 0 : Math.round((totalTax / 2) * 100) / 100,
+    sgst: isInterState ? 0 : Math.round((totalTax / 2) * 100) / 100,
+    igst: isInterState ? totalTax : 0
   };
 
   return { processedItems, subtotal, totalTax, taxBreakdown, totalAmount };
@@ -99,7 +89,7 @@ const calculateInvoiceTotals = (
 // @access  Private
 const getInvoices = asyncHandler(async (req, res) => {
   const companyId = req.company ? req.company._id : null;
-  const { status, search, warehouse, country, countryCode, currency, startDate, endDate } = req.query;
+  const { status, search, warehouse, startDate, endDate } = req.query;
 
   const query = {};
   if (companyId) query.company = companyId;
@@ -110,18 +100,6 @@ const getInvoices = asyncHandler(async (req, res) => {
 
   if (warehouse) {
     query.sourceWarehouse = warehouse;
-  }
-
-  if (country && country !== 'ALL') {
-    query.country = country;
-  }
-
-  if (countryCode && countryCode !== 'ALL') {
-    query.countryCode = countryCode.toUpperCase();
-  }
-
-  if (currency && currency !== 'ALL') {
-    query.currency = currency.toUpperCase();
   }
 
   if (startDate || endDate) {
@@ -135,8 +113,7 @@ const getInvoices = asyncHandler(async (req, res) => {
       { invoiceNumber: { $regex: search, $options: 'i' } },
       { 'customer.name': { $regex: search, $options: 'i' } },
       { 'customer.phone': { $regex: search, $options: 'i' } },
-      { 'customer.gstin': { $regex: search, $options: 'i' } },
-      { 'customer.taxId': { $regex: search, $options: 'i' } }
+      { 'customer.gstin': { $regex: search, $options: 'i' } }
     ];
   }
 
@@ -228,11 +205,6 @@ const createInvoice = asyncHandler(async (req, res) => {
     customer,
     items,
     sourceWarehouse,
-    country = 'India',
-    countryCode = 'IN',
-    currency = 'INR',
-    currencySymbol = '₹',
-    taxSystem = 'GST',
     isInterState,
     shippingCharge,
     discountTotal,
@@ -265,17 +237,14 @@ const createInvoice = asyncHandler(async (req, res) => {
 
   const enrichedItems = items.map(i => {
     const prod = productMap.get(i.product?.toString());
-    // Auto-match price by currency if available
-    const matchedPrice = prod?.prices?.find(pr => pr.currency === currency)?.amount;
-    const unitPrice = Number(i.unitPrice) || matchedPrice || prod?.prices?.[0]?.amount || 0;
-    const defaultRate = countryCode === 'US' ? 8.25 : countryCode === 'AE' ? 5 : countryCode === 'GB' ? 20 : countryCode === 'SG' ? 9 : 18;
+    const unitPrice = Number(i.unitPrice) || prod?.prices?.[0]?.amount || 0;
     return {
       product: i.product,
       name: i.name || prod?.name || 'Product Item',
       sku: i.sku || prod?.sku || '',
       quantity: Number(i.quantity) || 1,
       unitPrice,
-      taxRate: Number(i.taxRate ?? defaultRate),
+      taxRate: Number(i.taxRate ?? 18),
       discount: Number(i.discount) || 0
     };
   });
@@ -284,9 +253,7 @@ const createInvoice = asyncHandler(async (req, res) => {
     enrichedItems,
     isInterState,
     shippingCharge,
-    discountTotal,
-    taxSystem,
-    countryCode
+    discountTotal
   );
 
   const invoiceNumber = await generateInvoiceNumber(companyId);
@@ -297,23 +264,17 @@ const createInvoice = asyncHandler(async (req, res) => {
     invoiceDate: new Date(),
     dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // Default 15 days
     sourceWarehouse: sourceWarehouse || null,
-    country,
-    countryCode: countryCode.toUpperCase(),
-    taxSystem,
-    currency: currency.toUpperCase(),
-    currencySymbol,
     customer: {
       name: customer.name.trim(),
       email: customer.email?.trim() || '',
       phone: customer.phone?.trim() || '',
-      gstin: customer.gstin?.trim()?.toUpperCase() || customer.taxId?.trim()?.toUpperCase() || '',
-      taxId: customer.taxId?.trim()?.toUpperCase() || customer.gstin?.trim()?.toUpperCase() || '',
+      gstin: customer.gstin?.trim()?.toUpperCase() || '',
       address: {
         street: customer.address?.street || '',
         city: customer.address?.city || '',
         state: customer.address?.state || '',
         pincode: customer.address?.pincode || '',
-        country: customer.address?.country || country
+        country: customer.address?.country || 'India'
       }
     },
     items: processedItems,
@@ -323,6 +284,7 @@ const createInvoice = asyncHandler(async (req, res) => {
     shippingCharge: Number(shippingCharge) || 0,
     discountTotal: Number(discountTotal) || 0,
     totalAmount,
+    currency: 'INR',
     status: status || 'DRAFT',
     paidAmount: status === 'PAID' ? totalAmount : 0,
     paymentMethod: paymentMethod || 'PENDING',
@@ -411,38 +373,22 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
     });
   }
 
-  const warehouseCountry = operation.sourceWarehouse?.country || req.company?.primaryCountry || 'India';
-  const warehouseCountryCode = (operation.sourceWarehouse?.countryCode || (warehouseCountry === 'United States' ? 'US' : 'IN')).toUpperCase();
-  const warehouseCurrency = operation.sourceWarehouse?.currency || req.company?.settings?.currency || (warehouseCountryCode === 'US' ? 'USD' : 'INR');
-  const currencySymbol = warehouseCountryCode === 'US' ? '$' : warehouseCountryCode === 'GB' ? '£' : warehouseCountryCode === 'AE' ? 'AED' : warehouseCountryCode === 'SG' ? 'S$' : warehouseCountryCode === 'DE' ? '€' : '₹';
-  const taxSystem = warehouseCountryCode === 'US' ? 'SALES_TAX' : (['GB', 'AE', 'DE'].includes(warehouseCountryCode)) ? 'VAT' : 'GST';
-
-  const defaultRate = warehouseCountryCode === 'US' ? 8.25 : warehouseCountryCode === 'AE' ? 5 : warehouseCountryCode === 'GB' ? 20 : warehouseCountryCode === 'SG' ? 9 : 18;
-
   // Build items from delivery operation
   const enrichedItems = operation.items.map(i => {
     const prod = i.product;
-    const matchedPrice = prod?.prices?.find(p => p.currency === warehouseCurrency)?.amount;
-    const unitPrice = matchedPrice || prod?.prices?.[0]?.amount || i.unitCost || 0;
+    const unitPrice = prod?.prices?.[0]?.amount || i.unitCost || 0;
     return {
       product: prod?._id || i.product,
       name: prod?.name || 'Delivered Product',
       sku: prod?.sku || '',
       quantity: i.quantity,
       unitPrice,
-      taxRate: defaultRate,
+      taxRate: 18,
       discount: 0
     };
   });
 
-  const { processedItems, subtotal, taxBreakdown, totalAmount } = calculateInvoiceTotals(
-    enrichedItems, 
-    false, 
-    0, 
-    0, 
-    taxSystem, 
-    warehouseCountryCode
-  );
+  const { processedItems, subtotal, taxBreakdown, totalAmount } = calculateInvoiceTotals(enrichedItems, false, 0, 0);
 
   const invoiceNumber = await generateInvoiceNumber(companyId);
 
@@ -450,7 +396,6 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
   const customerPhone = req.body?.customer?.phone || operation.customer?.phone || '';
   const customerEmail = req.body?.customer?.email || operation.customer?.email || '';
   const customerAddress = req.body?.customer?.address || operation.customer?.address || '';
-  const customerTaxId = req.body?.customer?.taxId || req.body?.customer?.gstin || '';
 
   const invoice = new Invoice({
     company: companyId,
@@ -459,18 +404,12 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
     dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
     operation: operation._id,
     sourceWarehouse: operation.sourceWarehouse?._id || operation.sourceWarehouse,
-    country: warehouseCountry,
-    countryCode: warehouseCountryCode,
-    currency: warehouseCurrency,
-    currencySymbol,
-    taxSystem,
     customer: {
       name: customerName,
       phone: customerPhone,
       email: customerEmail,
-      gstin: customerTaxId,
-      taxId: customerTaxId,
-      address: typeof customerAddress === 'string' ? { street: customerAddress, country: warehouseCountry } : customerAddress
+      gstin: req.body?.customer?.gstin || '',
+      address: typeof customerAddress === 'string' ? { street: customerAddress, country: 'India' } : customerAddress
     },
     items: processedItems,
     subtotal,
@@ -478,6 +417,7 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
     isInterState: false,
     shippingCharge: 0,
     totalAmount,
+    currency: 'INR',
     status: 'SENT',
     paymentMethod: 'PENDING',
     createdBy: userId,
