@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Plus, Search, Edit, Trash2, Box } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Box, FileSpreadsheet } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import FeatureGuide from '../components/FeatureGuide';
+import BulkImportModal from '../components/BulkImportModal';
 
 const Products = () => {
   const { user, role } = useAuth();
@@ -13,6 +14,7 @@ const Products = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showBulkModal, setShowBulkModal] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [category, setCategory] = useState('');
@@ -93,9 +95,17 @@ const Products = () => {
             proTip="Workers have read-only access to verify product specifications during physical counts and dispatches."
           />
           {isManager && (
-            <Link to="/products/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center gap-2 transition-all">
-              <Plus size={18} /> New Product
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowBulkModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center gap-1.5 transition-all"
+              >
+                <FileSpreadsheet size={16} /> Bulk Import
+              </button>
+              <Link to="/products/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md flex items-center gap-1.5 transition-all">
+                <Plus size={16} /> New Product
+              </Link>
+            </div>
           )}
         </div>
       </div>
@@ -207,6 +217,14 @@ const Products = () => {
           </div>
         </div>
       )}
+
+      {/* Bulk Import Modal */}
+      <BulkImportModal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        entityType="products"
+        onSuccess={fetchProducts}
+      />
     </div>
   );
 };

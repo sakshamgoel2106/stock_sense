@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getWarehouses,
   createWarehouse,
+  createWarehousesBulk,
   getWarehouseById,
   updateWarehouse,
   deleteWarehouse
@@ -15,6 +16,9 @@ router.use(requireCompany);
 router.route('/')
   .get(getWarehouses)
   .post(authorize('COMPANY_ADMIN', 'ADMIN'), createWarehouse);
+
+router.route('/bulk')
+  .post(authorize('COMPANY_ADMIN', 'ADMIN'), createWarehousesBulk);
 
 router.route('/:id')
   .get(getWarehouseById)

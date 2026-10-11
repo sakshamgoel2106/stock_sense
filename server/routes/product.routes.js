@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getProducts,
   createProduct,
+  createProductsBulk,
   getProductById,
   updateProduct,
   deleteProduct
@@ -15,6 +16,9 @@ router.use(requireCompany);
 router.route('/')
   .get(getProducts)
   .post(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), createProduct);
+
+router.route('/bulk')
+  .post(authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), createProductsBulk);
 
 router.route('/:id')
   .get(getProductById)

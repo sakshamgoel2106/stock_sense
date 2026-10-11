@@ -154,9 +154,104 @@ const deleteProduct = asyncHandler(async (req, res) => {
   res.json({ message: 'Product removed' });
 });
 
+// @desc    Bulk create products from Excel / CSV / JSON
+// @route   POST /api/v1/products/bulk
+// @access  Private (COMPANY_ADMIN, ADMIN, MANAGER)
+const createProductsBulk = asyncHandler(async (req, res) => {
+  const products = req.body.products || req.body.items || req.body.data;
+
+  if (!products || !Array.isArray(products) || products.length === 0) {
+    res.status(400);
+    throw new Error('Please provide an array of products to import');
+  }
+
+  const companyId = req.company ? req.company._id : null;
+  const ownerId = req.user ? req.user._id : null;
+
+  // Fetch existing SKUs for duplicate detection
+  const skuQuery = {};
+  if (companyId) skuQuery.company = companyId;
+  const existingProducts = await Product.find(skuQuery).select('sku');
+  const existingSkuSet = new Set(existingProducts.map(p => p.sku.toLowerCase().trim()));
+
+  const created = [];
+  const errors = [];
+  const seenBatchSkus = new Set();
+
+  for (let idx = 0; idx < products.length; idx++) {
+    const p = products[idx];
+    const rowNum = idx + 1;
+
+    const name = p.name ? String(p.name).trim() : '';
+    const sku = p.sku ? String(p.sku).trim() : '';
+
+    if (!name) {
+      errors.push({ row: rowNum, sku, error: 'Product name is required' });
+      continue;
+    }
+    if (!sku) {
+      errors.push({ row: rowNum, sku, error: 'Product SKU is required' });
+      continue;
+    }
+
+    const skuLower = sku.toLowerCase();
+    if (existingSkuSet.has(skuLower)) {
+      errors.push({ row: rowNum, sku, error: `SKU "${sku}" already exists in company catalog` });
+      continue;
+    }
+    if (seenBatchSkus.has(skuLower)) {
+      errors.push({ row: rowNum, sku, error: `Duplicate SKU "${sku}" found multiple times in this batch` });
+      continue;
+    }
+    seenBatchSkus.add(skuLower);
+
+    try {
+      const currency = p.currency || (req.company?.settings?.currency || 'INR');
+      const amount = Number(p.price !== undefined ? p.price : (p.amount !== undefined ? p.amount : (p.prices?.[0]?.amount || 0)));
+      const costPrice = Number(p.costPrice !== undefined ? p.costPrice : (amount * 0.7));
+      const leadTimeDays = Number(p.leadTimeDays || 4);
+      const safetyStockDays = Number(p.safetyStockDays || 3);
+      const minOrderQuantity = Number(p.minOrderQuantity || 1);
+      const reorderLevel = Number(p.reorderLevel || 0);
+
+      const newProduct = await Product.create({
+        name,
+        sku,
+        description: p.description || '',
+        category: p.category || 'General',
+        prices: [{ currency, amount: isNaN(amount) ? 0 : amount }],
+        costPrice: isNaN(costPrice) ? 0 : costPrice,
+        leadTimeDays: isNaN(leadTimeDays) ? 4 : leadTimeDays,
+        safetyStockDays: isNaN(safetyStockDays) ? 3 : safetyStockDays,
+        minOrderQuantity: isNaN(minOrderQuantity) ? 1 : minOrderQuantity,
+        unitOfMeasure: p.unitOfMeasure || 'Units',
+        reorderLevel: isNaN(reorderLevel) ? 0 : reorderLevel,
+        status: p.status === 'ARCHIVED' ? 'ARCHIVED' : 'ACTIVE',
+        company: companyId,
+        owner: ownerId
+      });
+
+      existingSkuSet.add(skuLower);
+      created.push(newProduct);
+    } catch (err) {
+      errors.push({ row: rowNum, sku, error: err.message });
+    }
+  }
+
+  res.status(201).json({
+    message: `Successfully imported ${created.length} product(s)${errors.length ? ` (${errors.length} skipped or failed)` : ''}`,
+    total: products.length,
+    successCount: created.length,
+    failedCount: errors.length,
+    created,
+    errors
+  });
+});
+
 module.exports = {
   getProducts,
   createProduct,
+  createProductsBulk,
   getProductById,
   updateProduct,
   deleteProduct

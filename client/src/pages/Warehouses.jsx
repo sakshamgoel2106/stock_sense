@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Edit, Trash2, MapPin } from 'lucide-react';
+import { Plus, Edit, Trash2, MapPin, FileSpreadsheet } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import BulkImportModal from '../components/BulkImportModal';
 
 const Warehouses = () => {
   const { user, role } = useAuth();
@@ -11,6 +12,7 @@ const Warehouses = () => {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showBulkModal, setShowBulkModal] = useState(false);
 
   const fetchWarehouses = async () => {
     try {
@@ -43,11 +45,22 @@ const Warehouses = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800 tracking-tight">Warehouses</h1>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800 tracking-tight">Warehouses</h1>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Physical distribution hubs, regional centers & fulfillment nodes.</p>
+        </div>
         {isCompanyAdmin && (
-          <Link to="/warehouses/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium shadow flex items-center gap-2 transition-colors">
-            <Plus size={20} /> New Warehouse
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBulkModal(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl font-bold shadow flex items-center gap-1.5 transition-colors text-xs sm:text-sm"
+            >
+              <FileSpreadsheet size={16} /> Bulk Import
+            </button>
+            <Link to="/warehouses/new" className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold shadow flex items-center gap-1.5 transition-colors text-xs sm:text-sm">
+              <Plus size={16} /> New Warehouse
+            </Link>
+          </div>
         )}
       </div>
 
@@ -110,6 +123,14 @@ const Warehouses = () => {
           ))}
         </div>
       )}
+
+      {/* Bulk Import Modal */}
+      <BulkImportModal
+        isOpen={showBulkModal}
+        onClose={() => setShowBulkModal(false)}
+        entityType="warehouses"
+        onSuccess={fetchWarehouses}
+      />
     </div>
   );
 };

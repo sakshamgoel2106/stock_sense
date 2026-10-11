@@ -130,9 +130,94 @@ const deleteWarehouse = asyncHandler(async (req, res) => {
   res.json({ message: 'Warehouse removed' });
 });
 
+// @desc    Bulk create warehouses from Excel / CSV / JSON
+// @route   POST /api/v1/warehouses/bulk
+// @access  Private (COMPANY_ADMIN, ADMIN)
+const createWarehousesBulk = asyncHandler(async (req, res) => {
+  const warehouses = req.body.warehouses || req.body.items || req.body.data;
+
+  if (!warehouses || !Array.isArray(warehouses) || warehouses.length === 0) {
+    res.status(400);
+    throw new Error('Please provide an array of warehouses to import');
+  }
+
+  const companyId = req.company ? req.company._id : null;
+  const ownerId = req.user ? req.user._id : null;
+
+  // Fetch existing warehouse codes for duplicate detection
+  const codeQuery = {};
+  if (companyId) codeQuery.company = companyId;
+  const existingWarehouses = await Warehouse.find(codeQuery).select('code');
+  const existingCodeSet = new Set(existingWarehouses.map(w => w.code.toLowerCase().trim()));
+
+  const created = [];
+  const errors = [];
+  const seenBatchCodes = new Set();
+
+  for (let idx = 0; idx < warehouses.length; idx++) {
+    const w = warehouses[idx];
+    const rowNum = idx + 1;
+
+    const name = w.name ? String(w.name).trim() : '';
+    const code = w.code ? String(w.code).trim().toUpperCase() : '';
+
+    if (!name) {
+      errors.push({ row: rowNum, code, error: 'Warehouse name is required' });
+      continue;
+    }
+    if (!code) {
+      errors.push({ row: rowNum, code, error: 'Warehouse facility code is required' });
+      continue;
+    }
+
+    const codeLower = code.toLowerCase();
+    if (existingCodeSet.has(codeLower)) {
+      errors.push({ row: rowNum, code, error: `Warehouse code "${code}" already exists in company` });
+      continue;
+    }
+    if (seenBatchCodes.has(codeLower)) {
+      errors.push({ row: rowNum, code, error: `Duplicate warehouse code "${code}" found in batch` });
+      continue;
+    }
+    seenBatchCodes.add(codeLower);
+
+    try {
+      const transitLeadTimeDays = Number(w.transitLeadTimeDays || 1);
+      const transferCostPerUnit = Number(w.transferCostPerUnit || 2);
+      const isActive = w.isActive !== undefined ? Boolean(w.isActive) : true;
+
+      const newWarehouse = await Warehouse.create({
+        name,
+        code,
+        location: w.location || '',
+        transitLeadTimeDays: isNaN(transitLeadTimeDays) ? 1 : transitLeadTimeDays,
+        transferCostPerUnit: isNaN(transferCostPerUnit) ? 2 : transferCostPerUnit,
+        isActive,
+        company: companyId,
+        owner: ownerId
+      });
+
+      existingCodeSet.add(codeLower);
+      created.push(newWarehouse);
+    } catch (err) {
+      errors.push({ row: rowNum, code, error: err.message });
+    }
+  }
+
+  res.status(201).json({
+    message: `Successfully imported ${created.length} warehouse(s)${errors.length ? ` (${errors.length} skipped or failed)` : ''}`,
+    total: warehouses.length,
+    successCount: created.length,
+    failedCount: errors.length,
+    created,
+    errors
+  });
+});
+
 module.exports = {
   getWarehouses,
   createWarehouse,
+  createWarehousesBulk,
   getWarehouseById,
   updateWarehouse,
   deleteWarehouse
