@@ -40,14 +40,22 @@
 @media print {
   body {
     background: white !important;
-    color: #111827 !important;
+    color: #0f172a !important;
+    font-size: 11px !important;
   }
   .print\:hidden {
     display: none !important;
   }
+  aside, nav, header {
+    display: none !important;
+  }
   @page {
     size: A4 portrait;
-    margin: 10mm 12mm 10mm 12mm;
+    margin: 8mm 10mm 8mm 10mm;
+  }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
 }
 
