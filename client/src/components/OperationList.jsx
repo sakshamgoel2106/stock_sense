@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, CheckCircle, Clock } from 'lucide-react';
+import { Plus, CheckCircle, Clock, Receipt, FileText } from 'lucide-react';
 import api from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import FeatureGuide from './FeatureGuide';
+import InvoiceDetailModal from './InvoiceDetailModal';
+import toast from 'react-hot-toast';
 
 const OperationList = ({ title, type, newLink }) => {
   const { user, role } = useAuth();
@@ -14,6 +16,35 @@ const OperationList = ({ title, type, newLink }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [validating, setValidating] = useState(null);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [billingId, setBillingId] = useState(null);
+
+  const handleViewInvoice = async (invoiceRef) => {
+    try {
+      const invId = typeof invoiceRef === 'object' ? invoiceRef._id : invoiceRef;
+      const res = await api.get(`/invoices/${invId}`);
+      setSelectedInvoice(res.data);
+      setShowInvoiceModal(true);
+    } catch (err) {
+      toast.error('Failed to load invoice details');
+    }
+  };
+
+  const handleGenerateInvoice = async (op) => {
+    try {
+      setBillingId(op._id);
+      const res = await api.post(`/invoices/from-delivery/${op._id}`);
+      toast.success(`Tax Invoice generated for Delivery #${op._id.slice(-6).toUpperCase()}!`);
+      setSelectedInvoice(res.data);
+      setShowInvoiceModal(true);
+      fetchOperations();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to generate invoice');
+    } finally {
+      setBillingId(null);
+    }
+  };
 
   const fetchOperations = async () => {
     try {
@@ -205,7 +236,31 @@ const OperationList = ({ title, type, newLink }) => {
                         </span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                      {/* Customer Delivery Invoicing (Strictly for DELIVERY, never for TRANSFER) */}
+                      {op.type === 'DELIVERY' && (
+                        op.invoice ? (
+                          <button
+                            onClick={() => handleViewInvoice(op.invoice)}
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-sm transition-colors"
+                            title="View & Print Customer GST Tax Invoice"
+                          >
+                            <Receipt size={13} className="text-emerald-600" />
+                            Bill: {op.invoice.invoiceNumber || 'View'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleGenerateInvoice(op)}
+                            disabled={billingId === op._id}
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1 shadow-sm transition-colors disabled:opacity-50"
+                            title="Generate Customer GST Tax Invoice for this delivery"
+                          >
+                            <Receipt size={13} />
+                            {billingId === op._id ? 'Billing...' : 'Generate Bill'}
+                          </button>
+                        )
+                      )}
+
                       {op.status === 'DRAFT' && (
                         op.type === 'TRANSFER' && op.approvalStatus === 'PENDING' ? (
                           isManager ? (
@@ -239,6 +294,14 @@ const OperationList = ({ title, type, newLink }) => {
           </div>
         </div>
       )}
+
+      {/* Linked Invoice Modal */}
+      <InvoiceDetailModal
+        isOpen={showInvoiceModal}
+        onClose={() => setShowInvoiceModal(false)}
+        invoice={selectedInvoice}
+        onPaymentSuccess={fetchOperations}
+      />
     </div>
   );
 };

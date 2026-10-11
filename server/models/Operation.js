@@ -39,6 +39,13 @@ const operationSchema = new mongoose.Schema({
     quantity: { type: Number, required: true, min: [0, 'Quantity cannot be negative'] },
     unitCost: { type: Number, default: 0 } // Used for RECEIPTS to track valuation
   }],
+  customer: {
+    name: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    email: { type: String, trim: true },
+    address: { type: String }
+  },
+  invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   validatedAt: { type: Date }
 }, { timestamps: true });

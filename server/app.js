@@ -17,6 +17,7 @@ const reservationRoutes = require('./routes/reservation.routes');
 const auditRoutes = require('./routes/audit.routes');
 const intelligenceRoutes = require('./routes/intelligence.routes');
 const companyRoutes = require('./routes/company.routes');
+const invoiceRoutes = require('./routes/invoice.routes');
 const connectDB = require('./config/db');
 
 require('dotenv').config();
@@ -43,6 +44,7 @@ app.use('/api/v1/warehouses', warehouseRoutes);
 app.use('/api/v1/reservations', reservationRoutes);
 app.use('/api/v1/audits', auditRoutes);
 app.use('/api/v1/intelligence', intelligenceRoutes);
+app.use('/api/v1/invoices', invoiceRoutes);
 
 app.get('/', (req, res) => {
   res.send('StockSense API is running...');

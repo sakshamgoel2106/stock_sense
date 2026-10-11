@@ -36,6 +36,7 @@ import CompanyOnboarding from './pages/CompanyOnboarding';
 import TeamManagement from './pages/TeamManagement';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import Invoices from './pages/Invoices';
 
 function App() {
   return (
@@ -80,6 +81,7 @@ function App() {
               <Route path="receipts/new" element={<ReceiptForm />} />
               <Route path="deliveries" element={<Deliveries />} />
               <Route path="deliveries/new" element={<DeliveryForm />} />
+              <Route path="invoices" element={<Invoices />} />
               <Route path="transfers" element={<Transfers />} />
               <Route path="transfers/new" element={<TransferForm />} />
               <Route path="adjustments" element={<Adjustments />} />

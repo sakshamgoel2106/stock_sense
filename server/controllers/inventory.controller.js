@@ -50,7 +50,8 @@ const getOperations = asyncHandler(async (req, res) => {
   const operations = await Operation.find(query)
     .populate('sourceWarehouse', 'name code')
     .populate('destinationWarehouse', 'name code')
-    .populate('items.product', 'name sku')
+    .populate('items.product', 'name sku prices')
+    .populate('invoice', 'invoiceNumber status totalAmount')
     .sort({ createdAt: -1 });
   res.json(operations);
 });

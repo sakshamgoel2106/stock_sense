@@ -5,7 +5,7 @@ import {
   ArrowDownToLine, ArrowUpFromLine, ArrowRightLeft, Sliders, 
   LogOut, UserCircle, BookOpen, Menu, X,
   Clock, TrendingUp, DollarSign, Bookmark, CheckSquare, ClipboardCheck,
-  Search, Bell, Settings, Brain, Sparkles, Users, Building2
+  Search, Bell, Settings, Brain, Sparkles, Users, Building2, Receipt
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -71,6 +71,7 @@ const Layout = () => {
   const operationLinks = [
     { to: "/receipts", icon: <ArrowDownToLine size={20} />, label: "Receipts" },
     { to: "/deliveries", icon: <ArrowUpFromLine size={20} />, label: "Deliveries" },
+    { to: "/invoices", icon: <Receipt size={20} className="text-emerald-600" />, label: "Billing & Invoices" },
     { to: "/transfers", icon: <ArrowRightLeft size={20} />, label: "Transfers" },
     { to: "/adjustments", icon: <Sliders size={20} />, label: "Adjustments" },
   ];
