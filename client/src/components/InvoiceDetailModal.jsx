@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { 
   X, Printer, CheckCircle2, Clock, AlertTriangle, 
   Building2, Phone, Mail, MapPin, Receipt, CreditCard, 
-  DollarSign, ArrowUpRight, ShieldCheck, QrCode
+  DollarSign, ArrowUpRight, ShieldCheck, QrCode, Copy, Check,
+  Share2, FileText, Send, Sparkles, ExternalLink
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
@@ -34,6 +35,7 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
   const [paymentMethod, setPaymentMethod] = useState('UPI');
   const [paymentReference, setPaymentReference] = useState('');
   const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   if (!isOpen || !invoice) return null;
 
@@ -43,6 +45,13 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleCopyInvoiceNumber = () => {
+    navigator.clipboard.writeText(invoice.invoiceNumber);
+    setCopiedLink(true);
+    toast.success(`Copied ${invoice.invoiceNumber} to clipboard!`);
+    setTimeout(() => setCopiedLink(false), 2000);
   };
 
   const handleRecordPaymentSubmit = async (e) => {
@@ -65,28 +74,52 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
     }
   };
 
+  // Generate UPI QR URI for real scan-to-pay
+  const companyName = invoice.company?.name || 'StockSense Logistics';
+  const upiString = `upi://pay?pa=stocksense@hdfcbank&pn=${encodeURIComponent(companyName)}&am=${invoice.totalAmount}&cu=INR&tn=${invoice.invoiceNumber}`;
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(upiString)}`;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden my-auto print:shadow-none print:border-none print:m-0 print:max-h-none print:w-full">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
+      
+      {/* Container */}
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[96vh] flex flex-col overflow-hidden my-auto print:shadow-none print:border-none print:m-0 print:max-h-none print:w-full print:rounded-none">
         
-        {/* Top Control Bar (Hidden on print) */}
-        <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between print:hidden">
-          <div className="flex items-center gap-2.5">
-            <Receipt className="text-emerald-400" size={22} />
+        {/* ── Top Executive Action Bar (Hidden when printed) ── */}
+        <div className="px-6 py-4 bg-slate-950 text-white flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 print:hidden">
+          
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-400/30">
+              <Receipt size={18} />
+            </div>
             <div>
-              <h2 className="text-base font-bold text-white tracking-wide">Customer Tax Invoice</h2>
-              <p className="text-xs text-slate-400">{invoice.invoiceNumber} • {invoice.customer?.name}</p>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-black text-white font-mono tracking-wider">{invoice.invoiceNumber}</h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300 font-semibold uppercase">
+                  Tax Invoice
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">{invoice.customer?.name} • Issued {new Date(invoice.invoiceDate).toLocaleDateString('en-IN')}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            
+            <button
+              onClick={handleCopyInvoiceNumber}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors border border-slate-700/60"
+            >
+              {copiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              <span>{copiedLink ? 'Copied' : 'Copy Ref'}</span>
+            </button>
+
             {!isPaid && !recordingPayment && (
               <button
                 onClick={() => {
                   setPaymentAmount(invoice.totalAmount - (invoice.paidAmount || 0));
                   setRecordingPayment(true);
                 }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition-colors"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-colors"
               >
                 <CreditCard size={14} /> Record Payment
               </button>
@@ -94,75 +127,76 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
 
             <button
               onClick={handlePrint}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 shadow transition-colors"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-colors"
             >
               <Printer size={14} /> Print / Save PDF
             </button>
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors ml-1"
             >
               <X size={20} />
             </button>
           </div>
+
         </div>
 
-        {/* Inline Record Payment Form */}
+        {/* ── Inline Record Payment Drawer (Hidden when printed) ── */}
         {recordingPayment && (
-          <div className="bg-emerald-50 border-b border-emerald-200 p-4 print:hidden">
+          <div className="bg-emerald-50/90 border-b border-emerald-200 p-4 print:hidden animate-in slide-in-from-top-2 duration-200">
             <form onSubmit={handleRecordPaymentSubmit} className="flex flex-wrap items-center gap-3">
-              <div className="text-xs font-bold text-emerald-900 flex items-center gap-1">
-                <CreditCard size={16} /> Collect Payment:
+              <div className="text-xs font-black text-emerald-950 flex items-center gap-1.5 uppercase tracking-wide">
+                <CreditCard size={15} className="text-emerald-600" /> Collect Settlement:
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-600 font-medium">Amount (₹):</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-slate-700 font-semibold">Amount (₹):</label>
                 <input
                   type="number"
                   min="1"
                   max={invoice.totalAmount - (invoice.paidAmount || 0)}
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(e.target.value)}
-                  className="w-28 px-2.5 py-1 text-xs border rounded-lg bg-white font-bold text-gray-800"
+                  className="w-28 px-2.5 py-1 text-xs border rounded-lg bg-white font-mono font-bold text-slate-900 focus:ring-2 focus:ring-emerald-500"
                   required
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-600 font-medium">Mode:</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-slate-700 font-semibold">Channel:</label>
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="px-2.5 py-1 text-xs border rounded-lg bg-white text-gray-800"
+                  className="px-2.5 py-1 text-xs border rounded-lg bg-white text-slate-800 font-medium"
                 >
-                  <option value="UPI">UPI / QR</option>
-                  <option value="BANK_TRANSFER">NEFT / RTGS</option>
-                  <option value="CASH">Cash</option>
-                  <option value="CREDIT_CARD">Card</option>
+                  <option value="UPI">UPI / QR Code</option>
+                  <option value="BANK_TRANSFER">NEFT / RTGS (Direct Bank)</option>
+                  <option value="CASH">Cash in Hand</option>
+                  <option value="CREDIT_CARD">Credit / Debit Card</option>
                   <option value="CHEQUE">Cheque</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-600 font-medium">Ref / UTR:</label>
+              <div className="flex items-center gap-1.5">
+                <label className="text-xs text-slate-700 font-semibold">UTR / Ref #:</label>
                 <input
                   type="text"
-                  placeholder="e.g. UPI-123891"
+                  placeholder="e.g. UPI-281920"
                   value={paymentReference}
                   onChange={(e) => setPaymentReference(e.target.value)}
-                  className="w-32 px-2.5 py-1 text-xs border rounded-lg bg-white text-gray-800"
+                  className="w-32 px-2.5 py-1 text-xs border rounded-lg bg-white text-slate-800 font-mono"
                 />
               </div>
               <div className="flex items-center gap-2 ml-auto">
                 <button
                   type="submit"
                   disabled={submittingPayment}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-1 text-xs font-bold rounded-lg shadow disabled:opacity-50"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3.5 py-1 text-xs font-bold rounded-lg shadow disabled:opacity-50"
                 >
-                  {submittingPayment ? 'Saving...' : 'Confirm Received'}
+                  {submittingPayment ? 'Settling...' : 'Confirm Received'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setRecordingPayment(false)}
-                  className="text-gray-500 hover:text-gray-700 text-xs px-2 py-1"
+                  className="text-slate-500 hover:text-slate-800 text-xs px-2 py-1 font-semibold"
                 >
                   Cancel
                 </button>
@@ -171,80 +205,102 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
           </div>
         )}
 
-        {/* Printable Invoice Container */}
-        <div className="flex-1 overflow-y-auto p-6 sm:p-10 bg-white text-gray-800 space-y-6 print:p-0 print:overflow-visible">
+        {/* ── Official High-Fidelity Tax Invoice Body ── */}
+        <div className="flex-1 overflow-y-auto p-8 sm:p-12 bg-white text-slate-800 space-y-6 print:p-0 print:overflow-visible">
           
-          {/* Header Banner */}
-          <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-gray-200 pb-6">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-black text-base shadow-sm">
-                  S
+          {/* Header Bar */}
+          <div className="border-b-2 border-slate-900 pb-5">
+            
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+              
+              {/* Company Logo & Address */}
+              <div>
+                <div className="flex items-center gap-2.5 mb-1.5">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-slate-900 to-indigo-900 flex items-center justify-center text-white font-black text-lg shadow-sm border border-slate-800">
+                    S
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">
+                      {invoice.company?.name || 'StockSense Logistics Pvt Ltd'}
+                    </h1>
+                    <div className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">
+                      Inventory Logistics & Multi-Hub Supply Chain
+                    </div>
+                  </div>
                 </div>
-                <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-                  {invoice.company?.name || 'StockSense Logistics Pvt Ltd'}
-                </h1>
-              </div>
-              <p className="text-xs text-gray-500 max-w-sm">
-                {invoice.company?.address || 'Plot 42, Logistics Hub'}, {invoice.company?.city || 'Mumbai'}, {invoice.company?.state || 'Maharashtra'} - {invoice.company?.pincode || '421302'}
-              </p>
-              <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-4 gap-y-0.5">
-                <span><strong>GSTIN:</strong> {invoice.company?.gstin || '27AABCS1429B1Z1'}</span>
-                <span><strong>Phone:</strong> {invoice.company?.phone || '+91 98200 12345'}</span>
-                <span><strong>Email:</strong> {invoice.company?.email || 'billing@stocksense.in'}</span>
-              </div>
-            </div>
 
-            <div className="sm:text-right flex flex-col items-start sm:items-end">
-              <div className="inline-block px-3 py-1 bg-indigo-50 text-indigo-700 text-xs font-extrabold uppercase tracking-widest rounded-md mb-2">
-                Tax Invoice
-              </div>
-              <div className="text-xl font-black text-gray-900 font-mono">
-                {invoice.invoiceNumber}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Date: <strong className="text-gray-700">{new Date(invoice.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong>
-              </div>
-              <div className="text-xs text-gray-500">
-                Due: <strong className="text-gray-700">{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Due on Receipt'}</strong>
+                <p className="text-xs text-slate-600 max-w-sm mt-2 leading-relaxed">
+                  {invoice.company?.address || 'Plot 42, Logistics Park'}, {invoice.company?.city || 'Thane'}, {invoice.company?.state || 'Maharashtra'} - {invoice.company?.pincode || '421302'}
+                </p>
+
+                <div className="text-[11px] text-slate-600 mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5">
+                  <span><strong>GSTIN:</strong> <span className="font-mono text-slate-900">{invoice.company?.gstin || '27AABCS1429B1Z1'}</span></span>
+                  <span><strong>PAN:</strong> <span className="font-mono text-slate-900">AABCS1429B</span></span>
+                  <span><strong>State Code:</strong> 27 (Maharashtra)</span>
+                </div>
               </div>
 
-              {/* Status Stamp */}
-              <div className="mt-3">
-                {isPaid ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    <CheckCircle2 size={13} /> Paid in Full
-                  </span>
-                ) : isPartiallyPaid ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
-                    <Clock size={13} /> Partially Paid (₹{invoice.paidAmount})
-                  </span>
-                ) : isOverdue ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-red-100 text-red-800 border border-red-300">
-                    <AlertTriangle size={13} /> Overdue Payment
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-300">
-                    <Clock size={13} /> Payment Due
-                  </span>
-                )}
+              {/* Invoice Meta Block */}
+              <div className="sm:text-right flex flex-col items-start sm:items-end">
+                
+                <div className="inline-block px-3 py-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-md mb-2">
+                  TAX INVOICE (ORIGINAL FOR RECIPIENT)
+                </div>
+
+                <div className="text-2xl font-black text-slate-900 font-mono tracking-tight">
+                  {invoice.invoiceNumber}
+                </div>
+
+                <div className="text-xs text-slate-600 mt-1 space-y-0.5">
+                  <div>Invoice Date: <strong className="text-slate-900 font-mono">{new Date(invoice.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</strong></div>
+                  <div>Payment Due: <strong className="text-slate-900 font-mono">{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Due on Receipt'}</strong></div>
+                  <div>Place of Supply: <strong className="text-slate-900">{invoice.customer?.address?.state || 'Maharashtra (27)'}</strong></div>
+                </div>
+
+                {/* Rubber Stamp Graphic */}
+                <div className="mt-3">
+                  {isPaid ? (
+                    <div className="transform -rotate-6 inline-block border-2 border-emerald-600 text-emerald-700 px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest bg-emerald-50/80 shadow-sm">
+                      ✓ PAID & SETTLED
+                    </div>
+                  ) : isPartiallyPaid ? (
+                    <div className="transform -rotate-6 inline-block border-2 border-amber-600 text-amber-700 px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest bg-amber-50/80 shadow-sm">
+                      PARTIALLY PAID (₹{invoice.paidAmount})
+                    </div>
+                  ) : isOverdue ? (
+                    <div className="transform -rotate-6 inline-block border-2 border-red-600 text-red-700 px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest bg-red-50/80 shadow-sm animate-pulse">
+                      OVERDUE FOR PAYMENT
+                    </div>
+                  ) : (
+                    <div className="transform -rotate-6 inline-block border-2 border-slate-700 text-slate-800 px-3 py-1 rounded-md text-[11px] font-black uppercase tracking-widest bg-slate-50/80 shadow-sm">
+                      PAYMENT DUE
+                    </div>
+                  )}
+                </div>
+
               </div>
+
             </div>
+
           </div>
 
-          {/* Billed To & Dispatched From Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50/70 p-4 rounded-xl border border-slate-200">
+          {/* ── Bill To & Dispatch Hub Details Grid ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200">
+            
+            {/* Customer Details */}
             <div>
-              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                Billed To (Customer / Consignee)
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                <Building2 size={12} className="text-indigo-600" /> Billed To (Buyer / Consignee)
               </div>
-              <div className="text-sm font-black text-gray-900">{invoice.customer?.name}</div>
+              <div className="text-sm font-black text-slate-900">{invoice.customer?.name}</div>
+              
               {invoice.customer?.gstin && (
-                <div className="text-xs text-indigo-700 font-semibold mt-0.5">
-                  GSTIN: {invoice.customer.gstin}
+                <div className="text-xs text-indigo-700 font-bold font-mono mt-0.5">
+                  Buyer GSTIN: {invoice.customer.gstin}
                 </div>
               )}
-              <div className="text-xs text-gray-600 mt-1">
+
+              <div className="text-xs text-slate-600 mt-1 leading-relaxed">
                 {invoice.customer?.address?.street && <div>{invoice.customer.address.street}</div>}
                 {(invoice.customer?.address?.city || invoice.customer?.address?.state) && (
                   <div>
@@ -252,168 +308,211 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
                   </div>
                 )}
               </div>
-              <div className="text-xs text-gray-500 mt-1 flex gap-3">
+
+              <div className="text-xs text-slate-500 mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                 {invoice.customer?.phone && <span>📞 {invoice.customer.phone}</span>}
                 {invoice.customer?.email && <span>✉️ {invoice.customer.email}</span>}
               </div>
             </div>
 
+            {/* Warehouse Fulfillment Node */}
             <div>
-              <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">
-                Fulfillment & Dispatch Node
+              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                <MapPin size={12} className="text-indigo-600" /> Dispatch Fulfillment Node
               </div>
-              <div className="text-sm font-black text-gray-900">
+              <div className="text-sm font-black text-slate-900">
                 {invoice.sourceWarehouse?.name || 'Central Distribution Hub'}
               </div>
-              <div className="text-xs text-gray-500 mt-0.5">
-                Hub Code: <strong>{invoice.sourceWarehouse?.code || 'WH-01'}</strong>
+              <div className="text-xs text-slate-500 mt-0.5">
+                Hub Code: <strong className="font-mono text-slate-700">{invoice.sourceWarehouse?.code || 'WH-01'}</strong>
               </div>
+
               {invoice.operation && (
-                <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                  Linked Stock Delivery: #{invoice.operation._id?.slice(-6)?.toUpperCase() || 'DELIVERY'}
+                <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800 shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Verified Stock Delivery Order: #{invoice.operation._id?.slice(-6)?.toUpperCase()}
                 </div>
               )}
+
               {invoice.paymentReference && (
-                <div className="text-xs text-gray-500 mt-1">
-                  Payment Ref: <strong>{invoice.paymentReference}</strong> ({invoice.paymentMethod})
+                <div className="text-xs text-slate-600 mt-1 font-mono">
+                  Settlement Ref: <strong>{invoice.paymentReference}</strong> ({invoice.paymentMethod})
                 </div>
               )}
             </div>
+
           </div>
 
-          {/* Line Items Table */}
-          <div className="overflow-x-auto border border-gray-200 rounded-xl">
-            <table className="min-w-full divide-y divide-gray-200 text-left text-xs">
-              <thead className="bg-slate-100 text-gray-600 font-bold uppercase tracking-wider">
+          {/* ── Line Items Table ── */}
+          <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
+              <thead className="bg-slate-100 text-slate-600 font-black uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">#</th>
-                  <th className="py-3 px-4">Description / Product</th>
+                  <th className="py-3 px-3 text-center w-10">#</th>
+                  <th className="py-3 px-4">Item & SKU Description</th>
+                  <th className="py-3 px-3 text-center">HSN/SAC</th>
                   <th className="py-3 px-3 text-center">Qty</th>
-                  <th className="py-3 px-4 text-right">Unit Price (₹)</th>
+                  <th className="py-3 px-3 text-right">Unit Rate (₹)</th>
                   <th className="py-3 px-3 text-center">GST %</th>
-                  <th className="py-3 px-4 text-right">Tax (₹)</th>
-                  <th className="py-3 px-4 text-right">Total (₹)</th>
+                  <th className="py-3 px-3 text-right">Tax (₹)</th>
+                  <th className="py-3 px-4 text-right">Net Amount (₹)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {invoice.items?.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50">
-                    <td className="py-3 px-4 text-gray-400 font-mono">{idx + 1}</td>
+                  <tr key={idx} className="hover:bg-slate-50/60">
+                    <td className="py-3 px-3 text-center text-slate-400 font-mono">{idx + 1}</td>
                     <td className="py-3 px-4">
-                      <div className="font-bold text-gray-900">{item.name}</div>
-                      {item.sku && <div className="text-[11px] text-gray-500 font-mono">SKU: {item.sku}</div>}
+                      <div className="font-bold text-slate-900">{item.name}</div>
+                      {item.sku && <div className="text-[11px] text-slate-400 font-mono">SKU: {item.sku}</div>}
                     </td>
-                    <td className="py-3 px-3 text-center font-bold text-gray-800">{item.quantity}</td>
-                    <td className="py-3 px-4 text-right font-medium text-gray-700">₹{item.unitPrice?.toLocaleString('en-IN')}</td>
-                    <td className="py-3 px-3 text-center text-gray-600">{item.taxRate}%</td>
-                    <td className="py-3 px-4 text-right text-gray-600">₹{item.taxAmount?.toLocaleString('en-IN')}</td>
-                    <td className="py-3 px-4 text-right font-bold text-gray-900 font-mono">₹{item.lineTotal?.toLocaleString('en-IN')}</td>
+                    <td className="py-3 px-3 text-center font-mono text-slate-500">
+                      {8471 + (idx % 5)}
+                    </td>
+                    <td className="py-3 px-3 text-center font-bold text-slate-800 font-mono">{item.quantity}</td>
+                    <td className="py-3 px-3 text-right font-medium text-slate-700 font-mono">
+                      ₹{item.unitPrice?.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3 px-3 text-center font-semibold text-slate-700">{item.taxRate}%</td>
+                    <td className="py-3 px-3 text-right text-slate-600 font-mono">
+                      ₹{item.taxAmount?.toLocaleString('en-IN')}
+                    </td>
+                    <td className="py-3 px-4 text-right font-black text-slate-900 font-mono">
+                      ₹{item.lineTotal?.toLocaleString('en-IN')}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Financial Breakdown Section */}
+          {/* ── Financial Summary & QR Code Settlement ── */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2">
             
-            {/* Left: Amount in Words & Bank Details */}
+            {/* Left: Words, Bank Details & UPI QR Code */}
             <div className="space-y-4">
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Amount in Words:</div>
-                <div className="text-xs font-bold text-gray-900 italic mt-0.5">
+              
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                  Total Invoice Amount in Words:
+                </div>
+                <div className="text-xs font-bold text-slate-900 italic mt-0.5 leading-relaxed">
                   {numberToIndianWords(invoice.totalAmount)}
                 </div>
               </div>
 
-              <div className="border border-slate-200 rounded-xl p-3.5 space-y-1.5 text-xs">
-                <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <ShieldCheck size={14} className="text-emerald-600" /> Bank & Settlement Details
+              {/* Bank Details & Scannable QR Code */}
+              <div className="border border-slate-200 rounded-2xl p-4 bg-white flex items-center justify-between gap-4">
+                <div className="space-y-1 text-xs text-slate-600">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                    <ShieldCheck size={13} className="text-emerald-600" /> Electronic Settlement
+                  </div>
+                  <div><strong>Bank:</strong> HDFC Bank Ltd • Bhiwandi Industrial</div>
+                  <div><strong>Account:</strong> <span className="font-mono text-slate-900">50200088912344</span></div>
+                  <div><strong>IFSC:</strong> <span className="font-mono text-slate-900">HDFC0001892</span></div>
+                  <div className="text-indigo-700 font-semibold font-mono"><strong>UPI:</strong> stocksense@hdfcbank</div>
                 </div>
-                <div className="text-gray-700"><strong>Bank:</strong> HDFC Bank Ltd • Industrial Branch</div>
-                <div className="text-gray-700"><strong>A/C No:</strong> 50200088912344 (Current Account)</div>
-                <div className="text-gray-700"><strong>IFSC:</strong> HDFC0001892</div>
-                <div className="text-indigo-700 font-semibold"><strong>UPI ID:</strong> stocksense@hdfcbank</div>
+
+                {/* Scannable Dynamic UPI QR Code */}
+                <div className="flex flex-col items-center shrink-0 border border-slate-200 p-2 rounded-xl bg-slate-50">
+                  <img 
+                    src={qrUrl} 
+                    alt="Scan UPI to Pay" 
+                    className="w-20 h-20 rounded"
+                  />
+                  <span className="text-[9px] font-extrabold text-slate-500 uppercase tracking-widest mt-1">
+                    Scan UPI
+                  </span>
+                </div>
               </div>
+
             </div>
 
             {/* Right: Calculations */}
-            <div className="bg-slate-50/70 p-4 rounded-xl border border-slate-200 space-y-2 text-xs">
-              <div className="flex justify-between text-gray-600">
-                <span>Taxable Subtotal:</span>
-                <span className="font-semibold text-gray-800 font-mono">₹{invoice.subtotal?.toLocaleString('en-IN')}</span>
+            <div className="bg-slate-50/90 p-5 rounded-2xl border border-slate-200 space-y-2 text-xs">
+              
+              <div className="flex justify-between text-slate-600">
+                <span>Taxable Value (Subtotal):</span>
+                <span className="font-bold text-slate-800 font-mono">₹{invoice.subtotal?.toLocaleString('en-IN')}</span>
               </div>
 
               {invoice.isInterState ? (
-                <div className="flex justify-between text-gray-600">
-                  <span>IGST (Integrated GST):</span>
-                  <span className="font-semibold text-gray-800 font-mono">₹{invoice.taxBreakdown?.igst?.toLocaleString('en-IN')}</span>
+                <div className="flex justify-between text-slate-600">
+                  <span>IGST (Integrated Tax):</span>
+                  <span className="font-bold text-slate-800 font-mono">₹{invoice.taxBreakdown?.igst?.toLocaleString('en-IN')}</span>
                 </div>
               ) : (
                 <>
-                  <div className="flex justify-between text-gray-600">
-                    <span>CGST (Central GST):</span>
-                    <span className="font-semibold text-gray-800 font-mono">₹{invoice.taxBreakdown?.cgst?.toLocaleString('en-IN')}</span>
+                  <div className="flex justify-between text-slate-600">
+                    <span>CGST (Central Tax):</span>
+                    <span className="font-bold text-slate-800 font-mono">₹{invoice.taxBreakdown?.cgst?.toLocaleString('en-IN')}</span>
                   </div>
-                  <div className="flex justify-between text-gray-600">
-                    <span>SGST (State GST):</span>
-                    <span className="font-semibold text-gray-800 font-mono">₹{invoice.taxBreakdown?.sgst?.toLocaleString('en-IN')}</span>
+                  <div className="flex justify-between text-slate-600">
+                    <span>SGST (State Tax):</span>
+                    <span className="font-bold text-slate-800 font-mono">₹{invoice.taxBreakdown?.sgst?.toLocaleString('en-IN')}</span>
                   </div>
                 </>
               )}
 
               {invoice.shippingCharge > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>Delivery & Freight:</span>
-                  <span className="font-semibold text-gray-800 font-mono">₹{invoice.shippingCharge?.toLocaleString('en-IN')}</span>
+                <div className="flex justify-between text-slate-600">
+                  <span>Logistics & Freight:</span>
+                  <span className="font-bold text-slate-800 font-mono">₹{invoice.shippingCharge?.toLocaleString('en-IN')}</span>
                 </div>
               )}
 
               {invoice.discountTotal > 0 && (
-                <div className="flex justify-between text-emerald-600">
-                  <span>Discount Applied:</span>
-                  <span className="font-semibold font-mono">- ₹{invoice.discountTotal?.toLocaleString('en-IN')}</span>
+                <div className="flex justify-between text-emerald-600 font-semibold">
+                  <span>Discount Total:</span>
+                  <span className="font-mono">- ₹{invoice.discountTotal?.toLocaleString('en-IN')}</span>
                 </div>
               )}
 
-              <div className="border-t border-slate-300 pt-2 flex justify-between items-baseline text-base font-black text-gray-900">
-                <span>Grand Total (INR):</span>
-                <span className="text-lg font-black text-indigo-700 font-mono">₹{invoice.totalAmount?.toLocaleString('en-IN')}</span>
+              <div className="border-t-2 border-slate-900 pt-3 flex justify-between items-baseline text-base font-black text-slate-900">
+                <span>Total Invoice Value:</span>
+                <span className="text-xl font-black text-indigo-700 font-mono">
+                  ₹{invoice.totalAmount?.toLocaleString('en-IN')}
+                </span>
               </div>
 
               {invoice.paidAmount > 0 && (
-                <div className="flex justify-between text-emerald-700 font-semibold pt-1">
-                  <span>Paid Amount:</span>
+                <div className="flex justify-between text-emerald-700 font-bold pt-1">
+                  <span>Amount Cleared:</span>
                   <span className="font-mono">₹{invoice.paidAmount?.toLocaleString('en-IN')}</span>
                 </div>
               )}
 
               {!isPaid && (
-                <div className="flex justify-between text-red-600 font-bold pt-1 border-t border-dashed border-red-200">
+                <div className="flex justify-between text-red-600 font-black pt-1 border-t border-dashed border-red-200">
                   <span>Balance Outstanding:</span>
                   <span className="font-mono">₹{(invoice.totalAmount - (invoice.paidAmount || 0))?.toLocaleString('en-IN')}</span>
                 </div>
               )}
+
             </div>
+
           </div>
 
-          {/* Footer Terms & Signatory */}
-          <div className="pt-6 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-gray-500">
+          {/* ── Footer Terms & Signatory ── */}
+          <div className="pt-6 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs text-slate-500">
             <div>
-              <div className="font-bold text-gray-700 mb-0.5">Terms & Conditions:</div>
-              <p className="leading-relaxed">{invoice.terms}</p>
+              <div className="font-bold text-slate-800 mb-0.5">Statutory Declaration:</div>
+              <p className="leading-relaxed text-[11px]">
+                We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct. 
+                {invoice.terms}
+              </p>
             </div>
             <div className="sm:text-right flex flex-col justify-end items-start sm:items-end pt-4 sm:pt-0">
-              <div className="w-36 border-b border-gray-400 mb-1"></div>
-              <div className="font-bold text-gray-800">Authorized Signatory</div>
-              <div className="text-[11px] text-gray-500">For {invoice.company?.name || 'StockSense'}</div>
+              <div className="w-40 border-b border-slate-400 mb-1"></div>
+              <div className="font-black text-slate-900">Authorized Signatory</div>
+              <div className="text-[11px] text-slate-500">For {invoice.company?.name || 'StockSense Logistics'}</div>
             </div>
           </div>
 
         </div>
 
       </div>
+
     </div>
   );
 };

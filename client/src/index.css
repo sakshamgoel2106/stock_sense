@@ -36,3 +36,18 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+@media print {
+  body {
+    background: white !important;
+    color: #111827 !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm 10mm 12mm;
+  }
+}
+
