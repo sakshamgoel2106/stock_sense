@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../lib/api';
+import { MNC_COUNTRIES, getCountryByCode } from '../lib/countries';
 
 const WarehouseForm = () => {
   const { id } = useParams();
@@ -11,6 +12,9 @@ const WarehouseForm = () => {
     name: '',
     code: '',
     location: '',
+    country: 'India',
+    countryCode: 'IN',
+    currency: 'INR',
     isActive: true
   });
   
@@ -28,6 +32,9 @@ const WarehouseForm = () => {
             name: w.name,
             code: w.code,
             location: w.location || '',
+            country: w.country || 'India',
+            countryCode: w.countryCode || 'IN',
+            currency: w.currency || 'INR',
             isActive: w.isActive
           });
         } catch (err) {
@@ -45,6 +52,16 @@ const WarehouseForm = () => {
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const handleCountrySelect = (code) => {
+    const c = getCountryByCode(code);
+    setFormData(prev => ({
+      ...prev,
+      country: c.name,
+      countryCode: c.code,
+      currency: c.currency
     }));
   };
 
@@ -102,6 +119,33 @@ const WarehouseForm = () => {
             />
           </div>
           
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Operating Country *</label>
+              <select
+                value={formData.countryCode}
+                onChange={(e) => handleCountrySelect(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 p-2.5 bg-white font-medium text-sm"
+              >
+                {MNC_COUNTRIES.map(c => (
+                  <option key={c.code} value={c.code}>
+                    {c.flag} {c.name} ({c.currency})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Operating Currency</label>
+              <input
+                type="text"
+                readOnly
+                value={`${formData.currency} (${formData.countryCode})`}
+                className="w-full border border-gray-200 bg-gray-50 rounded-lg shadow-sm p-2.5 font-mono text-sm font-bold text-gray-700 cursor-not-allowed"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Unique Code *</label>
             <input

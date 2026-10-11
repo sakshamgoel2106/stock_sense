@@ -73,7 +73,105 @@ const createCompany = asyncHandler(async (req, res) => {
 // @desc    Get current company details and user membership
 // @route   GET /api/v1/companies/current
 // @access  Private (Requires Company)
+const defaultMncCountries = [
+  {
+    code: 'IN',
+    name: 'India',
+    currency: 'INR',
+    currencySymbol: '₹',
+    taxSystem: 'GST',
+    taxIdName: 'GSTIN',
+    taxIdNumber: '27AABCS1429B1Z1',
+    address: 'Plot 42, Logistics Park, Bhiwandi',
+    city: 'Mumbai',
+    state: 'Maharashtra',
+    postalCode: '421302',
+    isPrimary: true
+  },
+  {
+    code: 'US',
+    name: 'United States',
+    currency: 'USD',
+    currencySymbol: '$',
+    taxSystem: 'SALES_TAX',
+    taxIdName: 'EIN',
+    taxIdNumber: '12-3456789',
+    address: '500 Logistics Boulevard, Suite 400',
+    city: 'Newark',
+    state: 'New Jersey',
+    postalCode: '07114',
+    isPrimary: false
+  },
+  {
+    code: 'GB',
+    name: 'United Kingdom',
+    currency: 'GBP',
+    currencySymbol: '£',
+    taxSystem: 'VAT',
+    taxIdName: 'VAT_NO',
+    taxIdNumber: 'GB 982 1234 56',
+    address: '25 Magna Park, Distribution Way',
+    city: 'Milton Keynes',
+    state: 'Buckinghamshire',
+    postalCode: 'MK17 8EW',
+    isPrimary: false
+  },
+  {
+    code: 'AE',
+    name: 'United Arab Emirates',
+    currency: 'AED',
+    currencySymbol: 'AED',
+    taxSystem: 'VAT',
+    taxIdName: 'TRN',
+    taxIdNumber: '100 2345 6789 0003',
+    address: 'Jebel Ali Free Zone, South Gate 4',
+    city: 'Dubai',
+    state: 'Dubai',
+    postalCode: '00000',
+    isPrimary: false
+  },
+  {
+    code: 'SG',
+    name: 'Singapore',
+    currency: 'SGD',
+    currencySymbol: 'S$',
+    taxSystem: 'GST',
+    taxIdName: 'UEN',
+    taxIdNumber: '202212345M',
+    address: '10 Jurong Island Highway',
+    city: 'Singapore',
+    state: 'Singapore',
+    postalCode: '627878',
+    isPrimary: false
+  },
+  {
+    code: 'DE',
+    name: 'Germany (European Union)',
+    currency: 'EUR',
+    currencySymbol: '€',
+    taxSystem: 'VAT',
+    taxIdName: 'VAT_ID',
+    taxIdNumber: 'DE 312 456 789',
+    address: 'Industriepark Höchst, Gebäude C48',
+    city: 'Frankfurt am Main',
+    state: 'Hessen',
+    postalCode: '65926',
+    isPrimary: false
+  }
+];
+
+// @desc    Get current company details and user membership
+// @route   GET /api/v1/companies/current
+// @access  Private (Requires Company)
 const getCurrentCompany = asyncHandler(async (req, res) => {
+  const company = req.company;
+  if (company && (!company.operatingCountries || company.operatingCountries.length === 0)) {
+    company.operatingCountries = defaultMncCountries;
+    company.isMNC = true;
+    company.primaryCountry = 'India';
+    await company.save();
+  }
+
   res.json({
     company: req.company,
     membership: req.membership
@@ -84,7 +182,10 @@ const getCurrentCompany = asyncHandler(async (req, res) => {
 // @route   PUT /api/v1/companies/current
 // @access  Private (COMPANY_ADMIN only)
 const updateCompanySettings = asyncHandler(async (req, res) => {
-  const { name, gstin, address, city, state, pincode, phone, email, settings } = req.body;
+  const { 
+    name, gstin, address, city, state, pincode, phone, email, 
+    settings, isMNC, primaryCountry, operatingCountries 
+  } = req.body;
   const company = await Company.findById(req.company._id);
 
   if (!company) {
@@ -100,6 +201,11 @@ const updateCompanySettings = asyncHandler(async (req, res) => {
   if (pincode !== undefined) company.pincode = pincode.trim();
   if (phone !== undefined) company.phone = phone.trim();
   if (email !== undefined) company.email = email.trim();
+  if (isMNC !== undefined) company.isMNC = Boolean(isMNC);
+  if (primaryCountry) company.primaryCountry = primaryCountry.trim();
+  if (operatingCountries && Array.isArray(operatingCountries)) {
+    company.operatingCountries = operatingCountries;
+  }
   if (settings) company.settings = { ...company.settings, ...settings };
 
   await company.save();

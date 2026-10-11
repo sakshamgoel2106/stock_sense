@@ -87,9 +87,18 @@ const Warehouses = () => {
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h3 className="text-xl font-bold text-gray-900">{warehouse.name}</h3>
-                  <span className="text-sm font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md">
-                    {warehouse.code}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md font-mono border border-indigo-100">
+                      {warehouse.code}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold flex items-center gap-1 border border-slate-200">
+                      <span>
+                        {warehouse.countryCode === 'US' ? '🇺🇸' : warehouse.countryCode === 'GB' ? '🇬🇧' : warehouse.countryCode === 'DE' ? '🇩🇪' : warehouse.countryCode === 'AE' ? '🇦🇪' : warehouse.countryCode === 'SG' ? '🇸🇬' : '🇮🇳'}
+                      </span>
+                      <span>{warehouse.country || 'India'}</span>
+                      <span className="text-[10px] text-slate-500 font-mono font-bold">({warehouse.currency || 'INR'})</span>
+                    </span>
+                  </div>
                 </div>
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                   warehouse.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'

@@ -2,15 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, Plus, Trash2, Receipt, Building2, Package, 
   MapPin, DollarSign, Percent, ShieldCheck, Truck, CheckCircle2,
-  Calendar, Layers, Sparkles, AlertCircle, ArrowRight
+  Calendar, Layers, Sparkles, AlertCircle, ArrowRight, Globe
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
+import { MNC_COUNTRIES, getCountryByCode, formatCurrency } from '../lib/countries';
 
 const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [products, setProducts] = useState([]);
   const [warehouses, setWarehouses] = useState([]);
+
+  // Multi-Country MNC State
+  const [selectedCountryCode, setSelectedCountryCode] = useState('IN');
+  const activeCountry = getCountryByCode(selectedCountryCode);
 
   // Form State
   const [customer, setCustomer] = useState({
@@ -18,6 +23,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
     email: '',
     phone: '',
     gstin: '',
+    taxId: '',
     address: { street: '', city: '', state: '', pincode: '', country: 'India' }
   });
   const [sourceWarehouse, setSourceWarehouse] = useState('');
@@ -62,17 +68,50 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
+  const handleCountryChange = (countryCode) => {
+    setSelectedCountryCode(countryCode);
+    const countryObj = getCountryByCode(countryCode);
+    setCustomer(prev => ({
+      ...prev,
+      address: {
+        ...prev.address,
+        country: countryObj.name
+      }
+    }));
+    // If current payment method is not in country's payment methods, switch to default
+    if (!countryObj.paymentMethods.some(pm => pm.id === paymentMethod)) {
+      setPaymentMethod(countryObj.paymentMethods[0].id);
+    }
+    // Update tax rate of line items to country's default
+    setItems(prevItems => prevItems.map(item => ({
+      ...item,
+      taxRate: countryObj.defaultRate
+    })));
+  };
+
+  const handleWarehouseChange = (whId) => {
+    setSourceWarehouse(whId);
+    const selectedWh = warehouses.find(w => w._id === whId);
+    if (selectedWh?.countryCode && selectedWh.countryCode !== selectedCountryCode) {
+      handleCountryChange(selectedWh.countryCode);
+    }
+  };
+
   const handleProductSelect = (index, productId) => {
     const selected = products.find(p => p._id === productId);
     const updated = [...items];
     if (selected) {
+      // Find matching currency price if available, else first price
+      const priceInCurrency = selected.prices?.find(pr => pr.currency === activeCountry.currency)?.amount;
+      const unitPrice = priceInCurrency !== undefined ? priceInCurrency : (selected.prices?.[0]?.amount || 0);
+
       updated[index] = {
         ...updated[index],
         product: selected._id,
         name: selected.name,
         sku: selected.sku || '',
-        unitPrice: selected.prices?.[0]?.amount || 0,
-        taxRate: 18
+        unitPrice,
+        taxRate: activeCountry.defaultRate
       };
     } else {
       updated[index] = {
@@ -93,7 +132,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
   };
 
   const addItemRow = () => {
-    setItems([...items, { product: '', name: '', sku: '', quantity: 1, unitPrice: 0, taxRate: 18, discount: 0 }]);
+    setItems([...items, { product: '', name: '', sku: '', quantity: 1, unitPrice: 0, taxRate: activeCountry.defaultRate, discount: 0 }]);
   };
 
   const removeItemRow = (index) => {
@@ -131,9 +170,9 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
     return {
       subtotal: Math.round(subtotal * 100) / 100,
       totalTax: Math.round(totalTax * 100) / 100,
-      cgst: isInterState ? 0 : Math.round((totalTax / 2) * 100) / 100,
-      sgst: isInterState ? 0 : Math.round((totalTax / 2) * 100) / 100,
-      igst: isInterState ? Math.round(totalTax * 100) / 100 : 0,
+      cgst: (selectedCountryCode === 'IN' && !isInterState) ? Math.round((totalTax / 2) * 100) / 100 : 0,
+      sgst: (selectedCountryCode === 'IN' && !isInterState) ? Math.round((totalTax / 2) * 100) / 100 : 0,
+      igst: (selectedCountryCode === 'IN' && isInterState) ? Math.round(totalTax * 100) / 100 : 0,
       grandTotal: Math.round(grandTotal * 100) / 100
     };
   };
@@ -162,10 +201,19 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
     try {
       setSubmitting(true);
       const payload = {
-        customer,
+        customer: {
+          ...customer,
+          taxId: customer.taxId || customer.gstin,
+          gstin: selectedCountryCode === 'IN' ? (customer.gstin || customer.taxId) : customer.gstin
+        },
         sourceWarehouse,
+        country: activeCountry.name,
+        countryCode: activeCountry.code,
+        currency: activeCountry.currency,
+        currencySymbol: activeCountry.currencySymbol,
+        taxSystem: activeCountry.taxSystem,
         items,
-        isInterState,
+        isInterState: selectedCountryCode === 'IN' ? isInterState : false,
         shippingCharge: Number(shippingCharge) || 0,
         discountTotal: Number(discountTotal) || 0,
         dueDate,
@@ -177,7 +225,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
       };
 
       const res = await api.post('/invoices', payload);
-      toast.success(`Invoice ${res.data.invoiceNumber} generated successfully!`);
+      toast.success(`Invoice ${res.data.invoiceNumber} (${activeCountry.name}) generated!`);
       if (onSuccess) onSuccess(res.data);
       onClose();
     } catch (err) {
@@ -202,12 +250,13 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-black tracking-tight">Create Customer Invoice & Bill</h2>
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-bold uppercase">
-                  GST Ready
+                <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 font-bold uppercase flex items-center gap-1">
+                  <span>{activeCountry.flag}</span>
+                  <span>{activeCountry.name} • {activeCountry.taxSystem}</span>
                 </span>
               </div>
               <p className="text-xs text-indigo-200 mt-0.5">
-                Generate official GST tax invoices with optional real-time warehouse inventory dispatch.
+                Multi-national billing engine with localized tax compliance ({activeCountry.currency}) & warehouse auto-dispatch.
               </p>
             </div>
           </div>
@@ -222,13 +271,49 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
         {/* ── Form Body ── */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
           
+          {/* Section 0: Multinational Country & Jurisdiction Selection */}
+          <div className="bg-gradient-to-r from-slate-900 to-indigo-950 p-4 rounded-3xl text-white shadow-md border border-indigo-900/50">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <label className="text-xs font-black uppercase tracking-wider text-indigo-200 flex items-center gap-1.5">
+                  <Globe size={14} className="text-indigo-400" /> Operating Country / Legal Tax Jurisdiction
+                </label>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Automatically adapts currency ({activeCountry.currencySymbol}), statutory tax structure ({activeCountry.taxSystem}), and legal identifiers.
+                </p>
+              </div>
+
+              {/* Country Selection Chips */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {MNC_COUNTRIES.map((c) => (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() => handleCountryChange(c.code)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      selectedCountryCode === c.code
+                        ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/40'
+                        : 'bg-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
+                    }`}
+                  >
+                    <span>{c.flag}</span>
+                    <span>{c.name}</span>
+                    <span className="text-[10px] opacity-75 font-mono">({c.currency})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* Section 1: Customer Details */}
           <div className="bg-slate-50/90 p-5 rounded-3xl border border-slate-200/80 space-y-4 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
                 <Building2 size={15} className="text-indigo-600" /> Buyer / Customer Information (Bill To)
               </h3>
-              <span className="text-[11px] text-slate-400 font-semibold">* Required for GST invoice</span>
+              <span className="text-[11px] text-slate-500 font-semibold">
+                * Statutory compliance under {activeCountry.name} {activeCountry.taxSystem}
+              </span>
             </div>
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -237,7 +322,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Tata Motors Ltd or Rahul Verma"
+                  placeholder={selectedCountryCode === 'IN' ? 'e.g. Tata Motors Ltd or Rahul Verma' : 'e.g. Acme Global Logistics Corp'}
                   value={customer.name}
                   onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
                   className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-indigo-500 font-semibold text-slate-800"
@@ -248,7 +333,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                 <label className="block text-xs font-bold text-slate-700 mb-1">Phone Number</label>
                 <input
                   type="text"
-                  placeholder="e.g. +91 98765 43210"
+                  placeholder={selectedCountryCode === 'IN' ? '+91 98765 43210' : '+1 (555) 234-5678'}
                   value={customer.phone}
                   onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
                   className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
@@ -259,7 +344,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                 <label className="block text-xs font-bold text-slate-700 mb-1">Email Address</label>
                 <input
                   type="email"
-                  placeholder="e.g. accounts@tatamotors.com"
+                  placeholder="accounts@customer.com"
                   value={customer.email}
                   onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
                   className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs bg-white focus:ring-2 focus:ring-indigo-500 font-medium"
@@ -272,7 +357,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                 <label className="block text-xs font-bold text-slate-700 mb-1">Billing Street Address</label>
                 <input
                   type="text"
-                  placeholder="e.g. 102, MIDC Industrial Area, Phase II"
+                  placeholder="Street / Suite / Industrial Hub"
                   value={customer.address.street}
                   onChange={(e) => setCustomer({ 
                     ...customer, 
@@ -283,10 +368,10 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">City & State</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">City & State / Region</label>
                 <input
                   type="text"
-                  placeholder="e.g. Pune, Maharashtra"
+                  placeholder={selectedCountryCode === 'IN' ? 'Pune, Maharashtra' : selectedCountryCode === 'US' ? 'Austin, TX' : 'London, Greater London'}
                   value={customer.address.city}
                   onChange={(e) => setCustomer({ 
                     ...customer, 
@@ -297,12 +382,18 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Customer GSTIN</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Customer {activeCountry.taxIdName}</span>
+                  <span className="text-[10px] text-indigo-600 font-mono font-normal">({activeCountry.code})</span>
+                </label>
                 <input
                   type="text"
-                  placeholder="e.g. 27ABCDE1234F1Z5"
-                  value={customer.gstin}
-                  onChange={(e) => setCustomer({ ...customer, gstin: e.target.value.toUpperCase() })}
+                  placeholder={`e.g. ${activeCountry.taxIdPlaceholder}`}
+                  value={customer.taxId || customer.gstin}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setCustomer({ ...customer, taxId: val, gstin: val });
+                  }}
                   className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs bg-white uppercase font-mono font-bold focus:ring-2 focus:ring-indigo-500 text-indigo-700"
                 />
               </div>
@@ -318,12 +409,14 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
               <select
                 required
                 value={sourceWarehouse}
-                onChange={(e) => setSourceWarehouse(e.target.value)}
+                onChange={(e) => handleWarehouseChange(e.target.value)}
                 className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs bg-white font-bold text-slate-800 focus:ring-2 focus:ring-indigo-500 cursor-pointer"
               >
                 <option value="">-- Select Fulfillment Hub --</option>
                 {warehouses.map(wh => (
-                  <option key={wh._id} value={wh._id}>{wh.name} ({wh.code})</option>
+                  <option key={wh._id} value={wh._id}>
+                    {wh.name} ({wh.code}) • {wh.country || 'Global'}
+                  </option>
                 ))}
               </select>
             </div>
@@ -341,15 +434,26 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
             </div>
 
             <div className="flex flex-col justify-end">
-              <label className="flex items-center gap-2 cursor-pointer bg-white p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={isInterState}
-                  onChange={(e) => setIsInterState(e.target.checked)}
-                  className="rounded text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="text-xs font-bold text-slate-700">Inter-State Sale (Apply IGST)</span>
-              </label>
+              {selectedCountryCode === 'IN' ? (
+                <label className="flex items-center gap-2 cursor-pointer bg-white p-2.5 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isInterState}
+                    onChange={(e) => setIsInterState(e.target.checked)}
+                    className="rounded text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs font-bold text-slate-700">Inter-State Sale (Apply IGST)</span>
+                </label>
+              ) : (
+                <div className="bg-white p-2.5 border border-slate-200 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-700">
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck size={14} className="text-emerald-600" /> Cross-Border & Customs
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 font-mono text-slate-600 font-bold">
+                    STANDARD {activeCountry.currency}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -357,7 +461,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-2">
-                <Package size={15} className="text-indigo-600" /> Billed Products & Catalog Line Items
+                <Package size={15} className="text-indigo-600" /> Billed Products & Catalog Line Items ({activeCountry.currency})
               </h3>
               <button
                 type="button"
@@ -374,10 +478,10 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                   <tr>
                     <th className="py-3 px-3 text-left">Catalog Product</th>
                     <th className="py-3 px-3 text-center w-24">Qty</th>
-                    <th className="py-3 px-3 text-right w-28">Rate (₹)</th>
-                    <th className="py-3 px-3 text-center w-24">GST %</th>
+                    <th className="py-3 px-3 text-right w-28">Rate ({activeCountry.currencySymbol})</th>
+                    <th className="py-3 px-3 text-center w-24">{activeCountry.taxSystem} %</th>
                     <th className="py-3 px-3 text-right w-24">Discount %</th>
-                    <th className="py-3 px-3 text-right w-28">Total (₹)</th>
+                    <th className="py-3 px-3 text-right w-28">Total ({activeCountry.currencySymbol})</th>
                     <th className="py-3 px-3 text-center w-12"></th>
                   </tr>
                 </thead>
@@ -398,11 +502,15 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                             className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs bg-white font-semibold text-slate-800"
                           >
                             <option value="">-- Choose Product --</option>
-                            {products.map(p => (
-                              <option key={p._id} value={p._id}>
-                                {p.name} ({p.sku}) • ₹{p.prices?.[0]?.amount || 0}
-                              </option>
-                            ))}
+                            {products.map(p => {
+                              const matchPrice = p.prices?.find(pr => pr.currency === activeCountry.currency)?.amount;
+                              const displayPrice = matchPrice !== undefined ? matchPrice : (p.prices?.[0]?.amount || 0);
+                              return (
+                                <option key={p._id} value={p._id}>
+                                  {p.name} ({p.sku}) • {activeCountry.currencySymbol}{displayPrice}
+                                </option>
+                              );
+                            })}
                           </select>
                         </td>
                         <td className="py-2.5 px-3">
@@ -432,11 +540,9 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                             onChange={(e) => handleItemChange(idx, 'taxRate', Number(e.target.value))}
                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-center font-semibold"
                           >
-                            <option value="0">0%</option>
-                            <option value="5">5%</option>
-                            <option value="12">12%</option>
-                            <option value="18">18%</option>
-                            <option value="28">28%</option>
+                            {activeCountry.defaultTaxRates.map(rate => (
+                              <option key={rate} value={rate}>{rate}%</option>
+                            ))}
                           </select>
                         </td>
                         <td className="py-2.5 px-3">
@@ -450,7 +556,7 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                           />
                         </td>
                         <td className="py-2.5 px-3 text-right font-black text-slate-900 font-mono">
-                          ₹{rowTotal.toLocaleString('en-IN')}
+                          {formatCurrency(rowTotal, activeCountry.currency, activeCountry.currencySymbol)}
                         </td>
                         <td className="py-2.5 px-3 text-center">
                           <button
@@ -511,24 +617,24 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
                 {markPaid && (
                   <div className="grid grid-cols-2 gap-3 pt-1 animate-in fade-in duration-200">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Channel</label>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Settlement Channel ({activeCountry.name})
+                      </label>
                       <select
                         value={paymentMethod}
                         onChange={(e) => setPaymentMethod(e.target.value)}
                         className="w-full px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs bg-white font-semibold"
                       >
-                        <option value="UPI">UPI / QR Code</option>
-                        <option value="BANK_TRANSFER">Bank Transfer (NEFT/RTGS)</option>
-                        <option value="CASH">Cash in Hand</option>
-                        <option value="CREDIT_CARD">Credit / Debit Card</option>
-                        <option value="CHEQUE">Cheque</option>
+                        {activeCountry.paymentMethods.map(pm => (
+                          <option key={pm.id} value={pm.id}>{pm.label}</option>
+                        ))}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Transaction Ref / UTR</label>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">Transaction Ref / UTR / Trace #</label>
                       <input
                         type="text"
-                        placeholder="e.g. UPI-981245"
+                        placeholder="e.g. TXN-819203"
                         value={paymentReference}
                         onChange={(e) => setPaymentReference(e.target.value)}
                         className="w-full px-2.5 py-1.5 border border-slate-200 rounded-xl text-xs bg-white font-mono"
@@ -544,29 +650,53 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
             <div className="bg-slate-50 p-5 rounded-3xl border border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between text-slate-600">
                 <span>Subtotal (Taxable):</span>
-                <span className="font-bold text-slate-800 font-mono">₹{subtotal.toLocaleString('en-IN')}</span>
+                <span className="font-bold text-slate-800 font-mono">
+                  {formatCurrency(subtotal, activeCountry.currency, activeCountry.currencySymbol)}
+                </span>
               </div>
 
-              {isInterState ? (
+              {selectedCountryCode === 'IN' ? (
+                isInterState ? (
+                  <div className="flex justify-between text-slate-600">
+                    <span>IGST (Integrated GST):</span>
+                    <span className="font-bold text-slate-800 font-mono">
+                      {formatCurrency(igst, activeCountry.currency, activeCountry.currencySymbol)}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-slate-600">
+                      <span>CGST (Central GST):</span>
+                      <span className="font-bold text-slate-800 font-mono">
+                        {formatCurrency(cgst, activeCountry.currency, activeCountry.currencySymbol)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>SGST (State GST):</span>
+                      <span className="font-bold text-slate-800 font-mono">
+                        {formatCurrency(sgst, activeCountry.currency, activeCountry.currencySymbol)}
+                      </span>
+                    </div>
+                  </>
+                )
+              ) : selectedCountryCode === 'US' ? (
                 <div className="flex justify-between text-slate-600">
-                  <span>IGST (Integrated GST):</span>
-                  <span className="font-bold text-slate-800 font-mono">₹{igst.toLocaleString('en-IN')}</span>
+                  <span>Sales Tax (State & County):</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {formatCurrency(totalTax, activeCountry.currency, activeCountry.currencySymbol)}
+                  </span>
                 </div>
               ) : (
-                <>
-                  <div className="flex justify-between text-slate-600">
-                    <span>CGST (Central GST):</span>
-                    <span className="font-bold text-slate-800 font-mono">₹{cgst.toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-600">
-                    <span>SGST (State GST):</span>
-                    <span className="font-bold text-slate-800 font-mono">₹{sgst.toLocaleString('en-IN')}</span>
-                  </div>
-                </>
+                <div className="flex justify-between text-slate-600">
+                  <span>{activeCountry.taxSystem} ({activeCountry.name} Statutory):</span>
+                  <span className="font-bold text-slate-800 font-mono">
+                    {formatCurrency(totalTax, activeCountry.currency, activeCountry.currencySymbol)}
+                  </span>
+                </div>
               )}
 
               <div className="flex justify-between items-center text-slate-600 pt-1">
-                <span>Shipping / Freight (₹):</span>
+                <span>Shipping / Freight ({activeCountry.currencySymbol}):</span>
                 <input
                   type="number"
                   min="0"
@@ -577,9 +707,9 @@ const CreateInvoiceModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
 
               <div className="border-t-2 border-slate-900 pt-3 flex justify-between items-baseline">
-                <span className="text-sm font-black text-slate-900">Grand Total (INR):</span>
+                <span className="text-sm font-black text-slate-900">Grand Total ({activeCountry.currency}):</span>
                 <span className="text-xl font-black text-indigo-700 font-mono">
-                  ₹{grandTotal.toLocaleString('en-IN')}
+                  {formatCurrency(grandTotal, activeCountry.currency, activeCountry.currencySymbol)}
                 </span>
               </div>
             </div>
