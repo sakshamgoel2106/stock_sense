@@ -1,24 +1,24 @@
 const mongoose = require('mongoose');
 
 const companySchema = new mongoose.Schema({
-  name: { 
-    type: String, 
+  name: {
+    type: String,
     required: [true, 'Company name is required'],
     trim: true,
     maxlength: [100, 'Company name cannot exceed 100 characters']
   },
-  code: { 
-    type: String, 
+  code: {
+    type: String,
     required: [true, 'Company code is required'],
     unique: true,
     uppercase: true,
     trim: true,
     maxlength: [20, 'Company code cannot exceed 20 characters']
   },
-  createdBy: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'User', 
-    required: true 
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
   },
   gstin: {
     type: String,

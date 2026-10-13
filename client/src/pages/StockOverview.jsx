@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Search, AlertTriangle, CheckCircle, XCircle, Package, Database, AlertCircle } from 'lucide-react';
+import { 
+  Search, AlertTriangle, CheckCircle, XCircle, Package, Database, 
+  AlertCircle, Building2, Layers, ArrowRightLeft, X 
+} from 'lucide-react';
 import api from '../lib/api';
 import FeatureGuide from '../components/FeatureGuide';
 
@@ -14,7 +17,7 @@ const StockOverview = () => {
   const fetchWarehouses = async () => {
     try {
       const res = await api.get('/warehouses');
-      setWarehouses(res.data);
+      setWarehouses(res.data || []);
     } catch (err) {
       console.error('Failed to fetch warehouses', err);
     }
@@ -28,7 +31,7 @@ const StockOverview = () => {
       if (selectedWarehouse) params.append('warehouse', selectedWarehouse);
       
       const res = await api.get(`/inventory/stock?${params.toString()}`);
-      setStockLevels(res.data);
+      setStockLevels(res.data || []);
       setError(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch stock overview');
@@ -44,33 +47,67 @@ const StockOverview = () => {
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       fetchStock();
-    }, 500);
+    }, 400);
     return () => clearTimeout(delayDebounceFn);
   }, [search, selectedWarehouse]);
 
   const getStockStatus = (quantity, reorderLevel) => {
     if (quantity <= 0) {
-      return { label: 'Out of Stock', icon: XCircle, variant: 'destructive', dot: 'bg-red-500', bg: 'bg-red-50 text-red-700 border-red-200' };
+      return { 
+        label: 'Out of Stock', 
+        icon: XCircle, 
+        dot: 'bg-rose-500', 
+        bg: 'bg-rose-50 text-rose-700 border-rose-200',
+        progress: 0,
+        progressColor: 'bg-rose-500'
+      };
     }
-    if (quantity <= (reorderLevel || 0)) {
-      return { label: 'Low Stock', icon: AlertTriangle, variant: 'warning', dot: 'bg-amber-500', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+    const target = (reorderLevel || 10);
+    if (quantity <= target) {
+      const pct = Math.min(100, Math.round((quantity / target) * 100));
+      return { 
+        label: 'Low Stock', 
+        icon: AlertTriangle, 
+        dot: 'bg-amber-500', 
+        bg: 'bg-amber-50 text-amber-700 border-amber-200',
+        progress: pct,
+        progressColor: 'bg-amber-500'
+      };
     }
-    return { label: 'In Stock', icon: CheckCircle, variant: 'success', dot: 'bg-green-500', bg: 'bg-green-50 text-green-700 border-green-200' };
+    return { 
+      label: 'Optimal Buffer', 
+      icon: CheckCircle, 
+      dot: 'bg-emerald-500', 
+      bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      progress: 100,
+      progressColor: 'bg-emerald-500'
+    };
   };
 
   // KPI Calculations
   const totalItems = stockLevels.length;
-  const totalQuantity = stockLevels.reduce((acc, item) => acc + item.quantity, 0);
+  const totalQuantity = stockLevels.reduce((acc, item) => acc + (item.quantity || 0), 0);
   const outOfStockCount = stockLevels.filter(item => item.quantity <= 0).length;
-  const lowStockCount = stockLevels.filter(item => item.quantity > 0 && item.quantity <= (item.product?.reorderLevel || 0)).length;
+  const lowStockCount = stockLevels.filter(item => item.quantity > 0 && item.quantity <= (item.product?.reorderLevel || 10)).length;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Title & Guide Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-gray-900">Multi-Hub Inventory Matrix</h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Real-time On-Hand, Reserved, and Available-To-Promise (ATP) stock balances across India.</p>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-2xl">
+              <Layers size={22} />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+              Multi-Hub Inventory Matrix
+            </h1>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Real-time On-Hand, Reserved, and Available-To-Promise (ATP) stock balances across India.
+          </p>
         </div>
+
         <FeatureGuide
           title="Multi-Hub Inventory Matrix"
           subtitle="Real-time stock balances & Available-To-Promise (ATP) tracking"
@@ -78,7 +115,7 @@ const StockOverview = () => {
           whatItIs="The central matrix of all SKU positions across all active warehouses. It tracks On-Hand Stock (physical inventory), Reserved Stock (allocated to pending client orders), and Available-To-Promise (ATP = On Hand - Reserved)."
           whyItMatters="Prevents critical stockouts and double-selling. Having multi-hub visibility allows managers to detect shortages in one city and balance stock from surplus hubs."
           howToUse={[
-            "Filter by warehouse dropdown (Mumbai, Delhi-NCR, Bengaluru, Chennai) to inspect regional distribution.",
+            "Filter by warehouse dropdown to inspect regional distribution.",
             "Search by product SKU or name to instantly verify stock across facilities.",
             "Check the status badge: Green (Healthy), Amber (Below Reorder Point), Red (Depleted stockout)."
           ]}
@@ -86,73 +123,93 @@ const StockOverview = () => {
         />
       </div>
 
-      {/* Premium KPI Cards */}
+      {/* KPI Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex flex-row items-center justify-between p-6 pb-2">
-            <h3 className="tracking-tight text-sm font-medium text-gray-950">Total Stock Items</h3>
-            <Package className="h-4 w-4 text-gray-500" />
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Position Records</span>
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
+              <Package size={18} />
+            </div>
           </div>
-          <div className="p-6 pt-0">
-            <div className="text-2xl font-bold text-gray-950 tabular-nums">{totalItems}</div>
-            <p className="text-xs text-gray-500">Unique product locations</p>
-          </div>
-        </div>
-        
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex flex-row items-center justify-between p-6 pb-2">
-            <h3 className="tracking-tight text-sm font-medium text-gray-950">Overall Quantity</h3>
-            <Database className="h-4 w-4 text-gray-500" />
-          </div>
-          <div className="p-6 pt-0">
-            <div className="text-2xl font-bold text-gray-950 tabular-nums">{totalQuantity.toLocaleString()}</div>
-            <p className="text-xs text-gray-500">Total physical units</p>
+          <div className="mt-3">
+            <div className="text-2xl font-extrabold text-slate-900">{totalItems}</div>
+            <p className="text-[11px] font-medium text-slate-400 mt-0.5">Unique SKU Hub Locations</p>
           </div>
         </div>
         
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex flex-row items-center justify-between p-6 pb-2">
-            <h3 className="tracking-tight text-sm font-medium text-gray-950">Low Stock Alerts</h3>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Physical Units</span>
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+              <Database size={18} />
+            </div>
           </div>
-          <div className="p-6 pt-0">
-            <div className="text-2xl font-bold text-gray-950 tabular-nums">{lowStockCount}</div>
-            <p className="text-xs text-gray-500">Items below reorder level</p>
+          <div className="mt-3">
+            <div className="text-2xl font-extrabold text-slate-900">{totalQuantity.toLocaleString()}</div>
+            <p className="text-[11px] font-medium text-slate-400 mt-0.5">Aggregate On-Hand Count</p>
           </div>
         </div>
         
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="flex flex-row items-center justify-between p-6 pb-2">
-            <h3 className="tracking-tight text-sm font-medium text-gray-950">Out of Stock</h3>
-            <AlertCircle className="h-4 w-4 text-red-500" />
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Below Safety Buffer</span>
+            <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+              <AlertTriangle size={18} />
+            </div>
           </div>
-          <div className="p-6 pt-0">
-            <div className="text-2xl font-bold text-gray-950 tabular-nums">{outOfStockCount}</div>
-            <p className="text-xs text-gray-500">Items requiring immediate attention</p>
+          <div className="mt-3">
+            <div className={`text-2xl font-extrabold ${lowStockCount > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+              {lowStockCount}
+            </div>
+            <p className="text-[11px] font-medium text-slate-400 mt-0.5">Items needing replenishment</p>
+          </div>
+        </div>
+        
+        <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Stockout Positions</span>
+            <div className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+              <AlertCircle size={18} />
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className={`text-2xl font-extrabold ${outOfStockCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+              {outOfStockCount}
+            </div>
+            <p className="text-[11px] font-medium text-slate-400 mt-0.5">Zero balance items</p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col">
-        <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 bg-gray-50/50">
+      {/* Filter and Matrix Table */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white shadow-sm overflow-hidden flex flex-col">
+        {/* Filter bar */}
+        <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-3 bg-slate-50/50">
           <div className="relative flex-1">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-4 w-4 text-gray-400" />
+            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <Search size={16} />
             </div>
             <input
               type="text"
-              className="pl-9 block w-full border-gray-200 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border bg-white"
+              className="w-full pl-10 pr-8 py-2 text-xs sm:text-sm bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 font-medium"
               placeholder="Filter by product name or SKU..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600">
+                <X size={14} />
+              </button>
+            )}
           </div>
+
           <select
-            className="block w-full md:w-64 border-gray-200 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm p-2 border bg-white text-gray-700"
+            className="block w-full md:w-72 border border-slate-200 rounded-2xl text-xs font-bold p-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-100"
             value={selectedWarehouse}
             onChange={(e) => setSelectedWarehouse(e.target.value)}
           >
-            <option value="">All Warehouses</option>
+            <option value="">All Warehouses ({warehouses.length} Hubs)</option>
             {warehouses.map(w => (
               <option key={w._id} value={w._id}>{w.name} ({w.code})</option>
             ))}
@@ -160,69 +217,82 @@ const StockOverview = () => {
         </div>
 
         {error && (
-          <div className="m-4 p-4 text-sm text-red-700 bg-red-50 rounded-md border border-red-100">
+          <div className="m-4 p-4 text-xs font-bold text-rose-700 bg-rose-50 rounded-2xl border border-rose-200">
             {error}
           </div>
         )}
 
+        {/* Matrix Table */}
         <div className="flex-1 overflow-x-auto">
           {loading ? (
-            <div className="flex justify-center items-center h-48 text-gray-500 text-sm">
-              Loading inventory data...
+            <div className="flex justify-center items-center h-48 text-slate-400 text-xs animate-pulse">
+              Loading inventory balance positions...
             </div>
           ) : stockLevels.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-              <AlertTriangle className="h-8 w-8 text-gray-300 mb-3" />
-              <p className="text-sm font-medium text-gray-900">No stock records found</p>
-              <p className="text-xs mt-1">Adjust your filters to see more results.</p>
+            <div className="flex flex-col items-center justify-center p-12 text-center">
+              <Package className="h-10 w-10 text-slate-300 mb-2" />
+              <p className="text-sm font-bold text-slate-800">No stock records found</p>
+              <p className="text-xs text-slate-400 mt-1">Adjust your filters to see active warehouse balances.</p>
             </div>
           ) : (
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-gray-500 bg-gray-50/50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 font-medium">Product</th>
-                  <th className="px-6 py-3 font-medium">Location</th>
-                  <th className="px-6 py-3 font-medium text-right">Stock Level</th>
-                  <th className="px-6 py-3 font-medium text-right">Reorder Point</th>
-                  <th className="px-6 py-3 font-medium text-center">Status</th>
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50/75 border-b border-slate-100">
+                <tr className="text-slate-400 uppercase tracking-wider font-extrabold">
+                  <th className="px-6 py-3.5">Product & SKU</th>
+                  <th className="px-6 py-3.5">Warehouse Location</th>
+                  <th className="px-6 py-3.5 text-right">Physical On-Hand</th>
+                  <th className="px-6 py-3.5 text-right">Reorder Threshold</th>
+                  <th className="px-6 py-3.5">Inventory Health Gauge</th>
+                  <th className="px-6 py-3.5 text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-50">
                 {stockLevels.map((record) => {
                   const product = record.product || {};
                   const warehouse = record.warehouse || {};
                   const status = getStockStatus(record.quantity, product.reorderLevel);
                   
                   return (
-                    <tr key={record._id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-6 py-4">
+                    <tr key={record._id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="px-6 py-3.5">
                         <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-md bg-indigo-50 flex items-center justify-center border border-indigo-100 shrink-0">
-                            <span className="text-indigo-600 font-semibold text-xs">
-                              {product.name?.substring(0, 2).toUpperCase() || 'NA'}
-                            </span>
+                          <div className="h-9 w-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-700 font-extrabold text-xs shrink-0">
+                            {product.name?.substring(0, 2).toUpperCase() || 'SK'}
                           </div>
                           <div>
-                            <div className="font-medium text-gray-950">{product.name || 'Unknown'}</div>
-                            <div className="text-xs text-gray-500">{product.sku || 'N/A'}</div>
+                            <div className="font-extrabold text-slate-900">{product.name || 'Unknown Item'}</div>
+                            <div className="text-[11px] font-mono text-slate-400 mt-0.5">{product.sku || 'N/A'}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-gray-950 font-medium">{warehouse.name || 'Unknown'}</div>
-                        <div className="text-xs text-gray-500 truncate max-w-[150px]">{warehouse.location || 'No location set'}</div>
+
+                      <td className="px-6 py-3.5">
+                        <div className="text-slate-900 font-bold">{warehouse.name || 'Unknown Hub'}</div>
+                        <div className="text-[11px] text-slate-400 truncate max-w-[180px]">{warehouse.location || 'India'}</div>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="font-semibold text-gray-950 tabular-nums">
+
+                      <td className="px-6 py-3.5 text-right">
+                        <div className="font-extrabold text-slate-900 text-sm">
                           {record.quantity}
                         </div>
-                        <div className="text-xs text-gray-500">{product.unitOfMeasure || 'Units'}</div>
+                        <div className="text-[10px] text-slate-400 font-medium">{product.unitOfMeasure || 'Units'}</div>
                       </td>
-                      <td className="px-6 py-4 text-right text-gray-500 tabular-nums">
-                        {product.reorderLevel || 0}
+
+                      <td className="px-6 py-3.5 text-right text-slate-500 font-bold">
+                        {product.reorderLevel || 10}
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${status.bg}`}>
+
+                      <td className="px-6 py-3.5 min-w-[140px]">
+                        <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                          <div 
+                            className={`h-2 rounded-full ${status.progressColor}`} 
+                            style={{ width: `${Math.min(100, Math.max(8, (record.quantity / (product.reorderLevel || 10)) * 50))}%` }}
+                          />
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-3.5 text-center whitespace-nowrap">
+                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-extrabold border ${status.bg}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`}></span>
                           {status.label}
                         </div>

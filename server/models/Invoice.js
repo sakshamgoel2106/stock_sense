@@ -12,6 +12,27 @@ const invoiceItemSchema = new mongoose.Schema({
   lineTotal: { type: Number, required: true }
 });
 
+const paymentRecordSchema = new mongoose.Schema({
+  receiptNumber: { type: String, required: true },
+  amount: { type: Number, required: true, min: [0.01, 'Payment amount must be greater than 0'] },
+  paymentDate: { type: Date, default: Date.now },
+  paymentMethod: {
+    type: String,
+    enum: ['UPI', 'BANK_TRANSFER', 'CASH', 'CREDIT_CARD', 'NET_BANKING', 'CHEQUE', 'DEMAND_DRAFT', 'PENDING'],
+    default: 'UPI'
+  },
+  transactionReference: { type: String, default: '' },
+  bankName: { type: String, default: '' },
+  payerDetails: { type: String, default: '' }, // e.g. VPA or Depositor Name / Acc
+  notes: { type: String, default: '' },
+  recordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  status: {
+    type: String,
+    enum: ['SUCCESS', 'PENDING_CLEARANCE', 'BOUNCED', 'REFUNDED'],
+    default: 'SUCCESS'
+  }
+}, { timestamps: true });
+
 const invoiceSchema = new mongoose.Schema({
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true },
   invoiceNumber: { type: String, required: true, uppercase: true, trim: true },
@@ -54,11 +75,12 @@ const invoiceSchema = new mongoose.Schema({
   paidAmount: { type: Number, default: 0 },
   paymentMethod: {
     type: String,
-    enum: ['UPI', 'BANK_TRANSFER', 'CASH', 'CREDIT_CARD', 'NET_BANKING', 'CHEQUE', 'PENDING'],
+    enum: ['UPI', 'BANK_TRANSFER', 'CASH', 'CREDIT_CARD', 'NET_BANKING', 'CHEQUE', 'DEMAND_DRAFT', 'PENDING'],
     default: 'PENDING'
   },
   paymentReference: { type: String, default: '' },
   paymentDate: { type: Date },
+  payments: [paymentRecordSchema],
   notes: { type: String, default: 'Thank you for choosing us for your fulfillment needs.' },
   terms: { type: String, default: 'Payment due within 15 days of invoice date. Goods dispatched are insured as per standard carrier terms.' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

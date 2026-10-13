@@ -33,6 +33,36 @@ const generateInvoiceNumber = async (companyId) => {
 };
 
 /**
+ * Generate next sequential payment receipt number for the company
+ * Format: RCT-YYYY-0001
+ */
+const generateReceiptNumber = async (companyId) => {
+  const year = new Date().getFullYear();
+  const prefix = `RCT-${year}-`;
+
+  // Find all invoices with payments for this company
+  const invoicesWithPayments = await Invoice.find({
+    company: companyId,
+    'payments.receiptNumber': { $regex: `^${prefix}` }
+  }).select('payments.receiptNumber');
+
+  let maxSeq = 0;
+  for (const inv of invoicesWithPayments) {
+    for (const p of inv.payments || []) {
+      if (p.receiptNumber && p.receiptNumber.startsWith(prefix)) {
+        const parts = p.receiptNumber.split('-');
+        const seq = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(seq) && seq > maxSeq) {
+          maxSeq = seq;
+        }
+      }
+    }
+  }
+
+  return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+};
+
+/**
  * Calculate line items, taxes and totals
  */
 const calculateInvoiceTotals = (items, isInterState = false, shippingCharge = 0, discountTotal = 0) => {
@@ -121,9 +151,86 @@ const getInvoices = asyncHandler(async (req, res) => {
     .populate('sourceWarehouse', 'name code location')
     .populate('operation', 'type status validatedAt')
     .populate('createdBy', 'name email')
+    .populate('payments.recordedBy', 'name email')
     .sort({ invoiceDate: -1, createdAt: -1 });
 
   res.json(invoices);
+});
+
+// @desc    Get all payment records across all invoices
+// @route   GET /api/v1/invoices/payments/all
+// @access  Private
+const getAllPayments = asyncHandler(async (req, res) => {
+  const companyId = req.company ? req.company._id : null;
+  const { search, paymentMethod, startDate, endDate } = req.query;
+
+  const query = { 'payments.0': { $exists: true } };
+  if (companyId) query.company = companyId;
+
+  const invoices = await Invoice.find(query)
+    .populate('sourceWarehouse', 'name code')
+    .populate('payments.recordedBy', 'name email')
+    .select('invoiceNumber invoiceDate customer totalAmount paidAmount status payments sourceWarehouse');
+
+  const allPayments = [];
+
+  for (const inv of invoices) {
+    for (const p of inv.payments || []) {
+      let matches = true;
+
+      if (paymentMethod && paymentMethod !== 'ALL' && p.paymentMethod !== paymentMethod) {
+        matches = false;
+      }
+
+      if (startDate && new Date(p.paymentDate) < new Date(startDate)) {
+        matches = false;
+      }
+
+      if (endDate && new Date(p.paymentDate) > new Date(endDate)) {
+        matches = false;
+      }
+
+      if (search) {
+        const s = search.toLowerCase();
+        const inReceipt = p.receiptNumber?.toLowerCase().includes(s);
+        const inRef = p.transactionReference?.toLowerCase().includes(s);
+        const inBank = p.bankName?.toLowerCase().includes(s);
+        const inCust = inv.customer?.name?.toLowerCase().includes(s);
+        const inInv = inv.invoiceNumber?.toLowerCase().includes(s);
+        if (!inReceipt && !inRef && !inBank && !inCust && !inInv) {
+          matches = false;
+        }
+      }
+
+      if (matches) {
+        allPayments.push({
+          _id: p._id,
+          receiptNumber: p.receiptNumber,
+          invoiceId: inv._id,
+          invoiceNumber: inv.invoiceNumber,
+          customerName: inv.customer?.name || 'Customer',
+          customerGstin: inv.customer?.gstin || '',
+          warehouseName: inv.sourceWarehouse?.name || '',
+          amount: p.amount,
+          paymentDate: p.paymentDate,
+          paymentMethod: p.paymentMethod,
+          transactionReference: p.transactionReference || '',
+          bankName: p.bankName || '',
+          payerDetails: p.payerDetails || '',
+          notes: p.notes || '',
+          status: p.status || 'SUCCESS',
+          recordedBy: p.recordedBy ? { name: p.recordedBy.name, email: p.recordedBy.email } : null,
+          invoiceTotalAmount: inv.totalAmount,
+          invoiceStatus: inv.status
+        });
+      }
+    }
+  }
+
+  // Sort newest payment date first
+  allPayments.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+
+  res.json(allPayments);
 });
 
 // @desc    Get invoice summary metrics & KPI stats
@@ -133,7 +240,7 @@ const getInvoiceStats = asyncHandler(async (req, res) => {
   const companyId = req.company ? req.company._id : null;
   const query = companyId ? { company: companyId } : {};
 
-  const invoices = await Invoice.find(query).select('status totalAmount paidAmount dueDate');
+  const invoices = await Invoice.find(query).select('status totalAmount paidAmount dueDate payments');
 
   let totalBilled = 0;
   let totalPaid = 0;
@@ -141,10 +248,12 @@ const getInvoiceStats = asyncHandler(async (req, res) => {
   let paidCount = 0;
   let pendingCount = 0;
   let overdueCount = 0;
+  let totalPaymentTransactions = 0;
   const now = new Date();
 
   for (const inv of invoices) {
     totalBilled += inv.totalAmount || 0;
+    totalPaymentTransactions += (inv.payments?.length || 0);
     
     if (inv.status === 'PAID') {
       totalPaid += inv.totalAmount || 0;
@@ -168,6 +277,7 @@ const getInvoiceStats = asyncHandler(async (req, res) => {
     totalPaid: Math.round(totalPaid),
     totalOutstanding: Math.round(totalOutstanding),
     totalInvoices: invoices.length,
+    totalPaymentTransactions,
     paidCount,
     pendingCount,
     overdueCount
@@ -187,7 +297,8 @@ const getInvoiceById = asyncHandler(async (req, res) => {
     .populate('sourceWarehouse', 'name code location')
     .populate('items.product', 'name sku prices unitOfMeasure')
     .populate('operation', 'type status validatedAt items')
-    .populate('createdBy', 'name email');
+    .populate('createdBy', 'name email')
+    .populate('payments.recordedBy', 'name email');
 
   if (!invoice) {
     res.status(404);
@@ -212,6 +323,8 @@ const createInvoice = asyncHandler(async (req, res) => {
     status,
     paymentMethod,
     paymentReference,
+    bankName,
+    payerDetails,
     notes,
     terms,
     deductStock
@@ -258,6 +371,24 @@ const createInvoice = asyncHandler(async (req, res) => {
 
   const invoiceNumber = await generateInvoiceNumber(companyId);
 
+  // If initial status is PAID, generate first payment receipt
+  const initialPayments = [];
+  if (status === 'PAID') {
+    const receiptNumber = await generateReceiptNumber(companyId);
+    initialPayments.push({
+      receiptNumber,
+      amount: totalAmount,
+      paymentDate: new Date(),
+      paymentMethod: paymentMethod || 'UPI',
+      transactionReference: paymentReference || '',
+      bankName: bankName || '',
+      payerDetails: payerDetails || '',
+      notes: 'Initial settlement on invoice creation',
+      recordedBy: userId,
+      status: 'SUCCESS'
+    });
+  }
+
   const invoice = new Invoice({
     company: companyId,
     invoiceNumber,
@@ -290,6 +421,7 @@ const createInvoice = asyncHandler(async (req, res) => {
     paymentMethod: paymentMethod || 'PENDING',
     paymentReference: paymentReference || '',
     paymentDate: status === 'PAID' ? new Date() : null,
+    payments: initialPayments,
     notes: notes || 'Thank you for choosing us for your fulfillment needs.',
     terms: terms || 'Payment due within 15 days of invoice date.',
     createdBy: userId,
@@ -329,7 +461,6 @@ const createInvoice = asyncHandler(async (req, res) => {
       savedOp.invoice = invoice._id;
       await savedOp.save();
     } catch (stockErr) {
-      // If stock is insufficient, report clear message
       res.status(400);
       throw new Error(`Stock Deduction Failed: ${stockErr.message}`);
     }
@@ -420,6 +551,7 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
     currency: 'INR',
     status: 'SENT',
     paymentMethod: 'PENDING',
+    payments: [],
     createdBy: userId,
     owner: userId
   });
@@ -433,11 +565,20 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
   res.status(201).json(savedInvoice);
 });
 
-// @desc    Record payment for an invoice
+// @desc    Record payment for an invoice with complete payment receipt tracking
 // @route   POST /api/v1/invoices/:id/payment
 // @access  Private
 const recordPayment = asyncHandler(async (req, res) => {
-  const { amount, paymentMethod, paymentReference, paymentDate, notes } = req.body;
+  const { 
+    amount, 
+    paymentMethod, 
+    transactionReference, 
+    bankName, 
+    payerDetails, 
+    paymentDate, 
+    notes 
+  } = req.body;
+
   const invoice = await Invoice.findById(req.params.id);
 
   if (!invoice) {
@@ -445,13 +586,39 @@ const recordPayment = asyncHandler(async (req, res) => {
     throw new Error('Invoice not found');
   }
 
-  const paymentVal = Number(amount) || invoice.totalAmount;
-  const newPaidAmount = (invoice.paidAmount || 0) + paymentVal;
+  const paymentVal = Number(amount);
+  if (isNaN(paymentVal) || paymentVal <= 0) {
+    res.status(400);
+    throw new Error('Valid payment amount greater than zero is required');
+  }
 
-  invoice.paidAmount = Math.min(invoice.totalAmount, newPaidAmount);
+  const companyId = req.company ? req.company._id : invoice.company;
+  const receiptNumber = await generateReceiptNumber(companyId);
+
+  const newPaymentRecord = {
+    receiptNumber,
+    amount: paymentVal,
+    paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
+    paymentMethod: paymentMethod || 'UPI',
+    transactionReference: transactionReference || req.body.paymentReference || '',
+    bankName: bankName || '',
+    payerDetails: payerDetails || '',
+    notes: notes || '',
+    recordedBy: req.user ? req.user._id : null,
+    status: 'SUCCESS'
+  };
+
+  invoice.payments.push(newPaymentRecord);
+
+  // Recalculate total paid from all SUCCESS payment records
+  const totalPaid = invoice.payments
+    .filter(p => p.status === 'SUCCESS')
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  invoice.paidAmount = Math.min(invoice.totalAmount, totalPaid);
   invoice.paymentMethod = paymentMethod || invoice.paymentMethod || 'UPI';
-  invoice.paymentReference = paymentReference || invoice.paymentReference || '';
-  invoice.paymentDate = paymentDate ? new Date(paymentDate) : new Date();
+  invoice.paymentReference = newPaymentRecord.transactionReference || invoice.paymentReference;
+  invoice.paymentDate = newPaymentRecord.paymentDate;
   
   if (invoice.paidAmount >= invoice.totalAmount) {
     invoice.status = 'PAID';
@@ -460,11 +627,22 @@ const recordPayment = asyncHandler(async (req, res) => {
   }
 
   if (notes) {
-    invoice.notes = `${invoice.notes}\nPayment recorded: ₹${paymentVal} via ${invoice.paymentMethod}`;
+    invoice.notes = `${invoice.notes || ''}\n[Receipt ${receiptNumber}]: ₹${paymentVal} via ${invoice.paymentMethod}`.trim();
   }
 
-  const updatedInvoice = await invoice.save();
-  res.json(updatedInvoice);
+  await invoice.save();
+
+  const populatedInvoice = await Invoice.findById(invoice._id)
+    .populate('company', 'name code gstin address city state pincode phone email')
+    .populate('sourceWarehouse', 'name code location')
+    .populate('items.product', 'name sku prices unitOfMeasure')
+    .populate('payments.recordedBy', 'name email');
+
+  res.json({
+    message: `Payment of ₹${paymentVal} recorded successfully`,
+    receiptNumber,
+    invoice: populatedInvoice
+  });
 });
 
 // @desc    Update invoice status (e.g. CANCELLED, DRAFT, SENT)
@@ -491,6 +669,7 @@ const updateInvoiceStatus = asyncHandler(async (req, res) => {
 
 module.exports = {
   getInvoices,
+  getAllPayments,
   getInvoiceStats,
   getInvoiceById,
   createInvoice,

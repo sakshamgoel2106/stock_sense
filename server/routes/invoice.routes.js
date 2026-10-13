@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getInvoices,
+  getAllPayments,
   getInvoiceStats,
   getInvoiceById,
   createInvoice,
@@ -16,6 +17,7 @@ router.use(protect);
 router.use(requireCompany);
 
 router.get('/stats', getInvoiceStats);
+router.get('/payments/all', getAllPayments);
 router.get('/', getInvoices);
 router.post('/', authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), createInvoice);
 router.post('/from-delivery/:operationId', authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER', 'WORKER'), createInvoiceFromDelivery);

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Bookmark, Box, CheckCircle, XCircle } from 'lucide-react';
+import { Bookmark, Box, CheckCircle, XCircle, Clock, ShieldCheck, ArrowRight } from 'lucide-react';
 import api from '../lib/api';
 import FeatureGuide from '../components/FeatureGuide';
+import toast from 'react-hot-toast';
 
 const Reservations = () => {
   const [reservations, setReservations] = useState([]);
@@ -12,7 +13,7 @@ const Reservations = () => {
     try {
       setLoading(true);
       const res = await api.get('/reservations');
-      setReservations(res.data);
+      setReservations(res.data || []);
       setError(null);
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch reservations');
@@ -26,29 +27,43 @@ const Reservations = () => {
   }, []);
 
   const handleAction = async (id, action) => {
-    if (!window.confirm(`Are you sure you want to ${action} this reservation?`)) return;
+    const confirmMsg = action === 'fulfill' 
+      ? 'Fulfill this client reservation? This will convert it into an outward delivery.' 
+      : 'Cancel this reservation? This will release reserved stock back into general ATP inventory.';
+    if (!window.confirm(confirmMsg)) return;
+
     try {
       await api.put(`/reservations/${id}/${action}`);
+      toast.success(`Reservation ${action === 'fulfill' ? 'fulfilled' : 'cancelled'} successfully!`);
       fetchReservations();
     } catch (err) {
-      alert(err.response?.data?.message || `Failed to ${action} reservation`);
+      toast.error(err.response?.data?.message || `Failed to ${action} reservation`);
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Title & Guide Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight flex items-center gap-2.5">
-            <Bookmark className="text-indigo-600" size={26} /> Client Stock Reservations
-          </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Available-To-Promise (ATP) hard stock allocations for enterprise client purchase orders.</p>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-2xl">
+              <Bookmark size={22} />
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+              Client Stock Reservations
+            </h1>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Available-To-Promise (ATP) hard stock allocations locked for enterprise client purchase orders.
+          </p>
         </div>
+
         <FeatureGuide
           title="Client Stock Reservations (ATP)"
           subtitle="Hard allocation of inventory against client purchase orders"
           category="Fulfillment Assurance"
-          whatItIs="Locks down specific batch quantities for enterprise buyers (e.g. Tata Motors, Reliance Retail). The stock stays physically on warehouse racks but is removed from Available-To-Promise (ATP) to prevent double-selling."
+          whatItIs="Locks down specific batch quantities for enterprise buyers. The stock stays physically on warehouse racks but is removed from Available-To-Promise (ATP) to prevent double-selling."
           whyItMatters="Guarantees order fulfillment SLA compliance and protects contract revenue from being poached by other walk-in or emergency dispatches."
           howToUse={[
             "Track customer name, order reference number, product SKU, and warehouse.",
@@ -59,63 +74,95 @@ const Reservations = () => {
         />
       </div>
 
-      {error && <div className="bg-red-50 text-red-600 p-4 rounded-lg border border-red-200">{error}</div>}
+      {error && (
+        <div className="bg-rose-50 text-rose-700 p-4 rounded-2xl border border-rose-200 text-xs font-bold">
+          {error}
+        </div>
+      )}
 
       {loading ? (
-        <div className="flex justify-center items-center h-64 text-gray-500">Loading reservations...</div>
+        <div className="bg-white rounded-3xl p-12 text-center text-slate-400 border border-slate-200/80 animate-pulse text-xs">
+          Loading client stock reservations...
+        </div>
       ) : reservations.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 flex flex-col items-center justify-center text-gray-500">
-          <Box size={48} className="text-gray-300 mb-4" />
-          <p className="text-lg font-medium">No reservations found</p>
+        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center flex flex-col items-center justify-center">
+          <div className="h-12 w-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-3">
+            <Box size={24} />
+          </div>
+          <p className="text-sm font-bold text-slate-800">No active reservations found</p>
+          <p className="text-xs text-slate-400 mt-1 max-w-sm">
+            All warehouse inventory is currently unallocated and Available-To-Promise (ATP).
+          </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order Ref</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Warehouse</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {reservations.map((item) => (
-                <tr key={item._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.orderReference}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{item.product?.name}</div>
-                    <div className="text-sm text-gray-500">{item.product?.sku}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.warehouse?.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-bold text-gray-900">{item.quantity}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      item.status === 'ACTIVE' ? 'bg-blue-100 text-blue-800' :
-                      item.status === 'FULFILLED' ? 'bg-green-100 text-green-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {item.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    {item.status === 'ACTIVE' && (
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => handleAction(item._id, 'fulfill')} className="text-green-600 hover:text-green-900 flex items-center gap-1">
-                          <CheckCircle size={16} /> Fulfill
-                        </button>
-                        <button onClick={() => handleAction(item._id, 'cancel')} className="text-red-600 hover:text-red-900 flex items-center gap-1">
-                          <XCircle size={16} /> Cancel
-                        </button>
-                      </div>
-                    )}
-                  </td>
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-100 text-xs">
+              <thead className="bg-slate-50/75">
+                <tr className="text-slate-400 uppercase tracking-wider font-extrabold text-left">
+                  <th className="px-6 py-3.5">Order Reference</th>
+                  <th className="px-6 py-3.5">Product Item</th>
+                  <th className="px-6 py-3.5">Assigned Facility</th>
+                  <th className="px-6 py-3.5 text-right">Locked Units</th>
+                  <th className="px-6 py-3.5 text-center">Status</th>
+                  <th className="px-6 py-3.5 text-right">Fulfillment Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {reservations.map((item) => (
+                  <tr key={item._id} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-6 py-3.5 whitespace-nowrap">
+                      <span className="font-mono font-extrabold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {item.orderReference || 'N/A'}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-3.5 whitespace-nowrap">
+                      <div className="font-extrabold text-slate-900">{item.product?.name}</div>
+                      <div className="text-[11px] font-mono text-slate-400 mt-0.5">{item.product?.sku}</div>
+                    </td>
+
+                    <td className="px-6 py-3.5 whitespace-nowrap text-slate-700 font-semibold">
+                      {item.warehouse?.name}
+                    </td>
+
+                    <td className="px-6 py-3.5 whitespace-nowrap text-right font-extrabold text-slate-900 text-sm">
+                      {item.quantity}
+                    </td>
+
+                    <td className="px-6 py-3.5 whitespace-nowrap text-center">
+                      <span className={`px-2.5 py-1 inline-flex text-[11px] font-extrabold rounded-full ${
+                        item.status === 'ACTIVE' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                        item.status === 'FULFILLED' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                        {item.status}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-3.5 whitespace-nowrap text-right space-x-2">
+                      {item.status === 'ACTIVE' && (
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => handleAction(item._id, 'fulfill')} 
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl font-bold inline-flex items-center gap-1 shadow-2xs transition-colors"
+                          >
+                            <CheckCircle size={14} /> Fulfill
+                          </button>
+                          <button 
+                            onClick={() => handleAction(item._id, 'cancel')} 
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-1.5 rounded-xl font-bold inline-flex items-center gap-1 shadow-2xs transition-colors"
+                          >
+                            <XCircle size={14} /> Release
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
