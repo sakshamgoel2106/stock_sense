@@ -41,9 +41,17 @@ const operationSchema = new mongoose.Schema({
   }],
   customer: {
     name: { type: String, trim: true },
+    companyName: { type: String, trim: true },
     phone: { type: String, trim: true },
     email: { type: String, trim: true },
-    address: { type: String }
+    gstin: { type: String, trim: true, uppercase: true },
+    address: {
+      street: { type: String, default: '' },
+      city: { type: String, default: '' },
+      state: { type: String, default: '' },
+      pincode: { type: String, default: '' },
+      country: { type: String, default: 'India' }
+    }
   },
   invoice: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

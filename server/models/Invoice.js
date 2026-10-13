@@ -43,6 +43,7 @@ const invoiceSchema = new mongoose.Schema({
   sourceWarehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse' },
   customer: {
     name: { type: String, required: [true, 'Customer name is required'], trim: true },
+    companyName: { type: String, trim: true, default: '' },
     email: { type: String, trim: true, default: '' },
     phone: { type: String, trim: true, default: '' },
     gstin: { type: String, trim: true, uppercase: true, default: '' },

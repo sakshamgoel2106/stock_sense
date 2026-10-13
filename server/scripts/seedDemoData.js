@@ -14,6 +14,7 @@ const StockLedger = require('../models/StockLedger');
 const Operation = require('../models/Operation');
 const Reservation = require('../models/Reservation');
 const Audit = require('../models/Audit');
+const Invoice = require('../models/Invoice');
 const tenantStorage = require('../utils/tenantStorage');
 
 const connectDB = async () => {
@@ -42,6 +43,7 @@ const seedDemoData = async () => {
     StockLayer.deleteMany({}),
     StockLedger.deleteMany({}),
     Operation.deleteMany({}),
+    Invoice.deleteMany({}),
     Reservation.deleteMany({}),
     Audit.deleteMany({})
   ]);
@@ -643,17 +645,248 @@ const seedDemoData = async () => {
       createdBy: demoUser._id
     });
 
-    // 4. Draft Customer Delivery (Outbound dispatch from Mumbai Hub)
+    // 4. Draft Customer Delivery (Ready for live demo of 'Deliver Goods & Generate Bill')
     await Operation.create({
       company: companyId,
       owner: demoUser._id,
       type: 'DELIVERY',
       sourceWarehouse: whMumbai._id,
-      items: [{ product: pParacetamolAPI._id, quantity: 5 }],
+      items: [{ product: pBrakeAssembly._id, quantity: 10, unitPrice: 3200 }],
       status: 'DRAFT',
       approvalStatus: 'NOT_REQUIRED',
+      customer: {
+        companyName: 'Mahindra Logistics & Auto Ltd',
+        name: 'Mahindra Logistics & Auto Ltd',
+        contactName: 'Vikramaditya Shinde',
+        email: 'supplychain@mahindra.com',
+        phone: '+91 98205 67890',
+        gstin: '27AAACM1234A1Z8',
+        address: {
+          street: 'Kandivali Industrial Complex, SV Road',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          pincode: '400101',
+          country: 'India'
+        }
+      },
       createdBy: demoUser._id
     });
+
+    // 5. Completed Delivery 1: Tata Motors Commercial Vehicles Ltd (PAID via Bank Transfer)
+    const subtotal1 = 20 * 3200; // 64,000
+    const cgst1 = Math.round(subtotal1 * 0.09 * 100) / 100; // 5,760
+    const sgst1 = Math.round(subtotal1 * 0.09 * 100) / 100; // 5,760
+    const total1 = subtotal1 + cgst1 + sgst1; // 75,520
+
+    const opDel1 = await Operation.create({
+      company: companyId,
+      owner: demoUser._id,
+      type: 'DELIVERY',
+      sourceWarehouse: whMumbai._id,
+      items: [{ product: pBrakeAssembly._id, quantity: 20, unitPrice: 3200 }],
+      status: 'VALIDATED',
+      approvalStatus: 'NOT_REQUIRED',
+      customer: {
+        companyName: 'Tata Motors Commercial Vehicles Ltd',
+        name: 'Tata Motors Commercial Vehicles Ltd',
+        contactName: 'Ramesh Kulkarni',
+        email: 'accounts.payable@tatamotors.com',
+        phone: '+91 98201 23456',
+        gstin: '27AAACT1234A1Z5',
+        address: {
+          street: 'Pune-Nashik Highway, Chakan Industrial Area',
+          city: 'Pune',
+          state: 'Maharashtra',
+          pincode: '410501',
+          country: 'India'
+        }
+      },
+      createdBy: demoUser._id
+    });
+
+    const inv1 = await Invoice.create({
+      company: companyId,
+      invoiceNumber: 'INV-2026-0001',
+      invoiceDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+      dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+      operation: opDel1._id,
+      sourceWarehouse: whMumbai._id,
+      customer: opDel1.customer,
+      items: [{
+        product: pBrakeAssembly._id,
+        name: pBrakeAssembly.name,
+        sku: pBrakeAssembly.sku,
+        quantity: 20,
+        unitPrice: 3200,
+        taxRate: 18,
+        taxAmount: cgst1 + sgst1,
+        discount: 0,
+        lineTotal: subtotal1
+      }],
+      subtotal: subtotal1,
+      taxBreakdown: { cgst: cgst1, sgst: sgst1, igst: 0, totalTax: cgst1 + sgst1 },
+      isInterState: false,
+      shippingCharge: 0,
+      totalAmount: total1,
+      paidAmount: total1,
+      status: 'PAID',
+      paymentMethod: 'BANK_TRANSFER',
+      paymentReference: 'NEFT-HDFC-99201481',
+      paymentDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      payments: [{
+        receiptNumber: 'RCP-2026-0001',
+        amount: total1,
+        paymentDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+        paymentMethod: 'BANK_TRANSFER',
+        transactionReference: 'NEFT-HDFC-99201481',
+        bankName: 'HDFC Bank Ltd',
+        status: 'SUCCESS'
+      }],
+      createdBy: demoUser._id,
+      owner: demoUser._id
+    });
+    opDel1.invoice = inv1._id;
+    await opDel1.save();
+
+    // 6. Completed Delivery 2: Sun Pharma Laboratories Ltd (PARTIALLY_PAID via UPI)
+    const subtotal2 = 15 * 1850; // 27,750
+    const cgst2 = Math.round(subtotal2 * 0.09 * 100) / 100; // 2,497.50
+    const sgst2 = Math.round(subtotal2 * 0.09 * 100) / 100; // 2,497.50
+    const total2 = subtotal2 + cgst2 + sgst2; // 32,745
+    const partialPaid2 = 20000;
+
+    const opDel2 = await Operation.create({
+      company: companyId,
+      owner: demoUser._id,
+      type: 'DELIVERY',
+      sourceWarehouse: whMumbai._id,
+      items: [{ product: pParacetamolAPI._id, quantity: 15, unitPrice: 1850 }],
+      status: 'VALIDATED',
+      approvalStatus: 'NOT_REQUIRED',
+      customer: {
+        companyName: 'Sun Pharma Laboratories Ltd',
+        name: 'Sun Pharma Laboratories Ltd',
+        contactName: 'Dr. Alok Verma',
+        email: 'procurement@sunpharma.com',
+        phone: '+91 98202 34567',
+        gstin: '27AAACS1420A1ZP',
+        address: {
+          street: 'Sun House, Western Express Highway, Goregaon East',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          pincode: '400063',
+          country: 'India'
+        }
+      },
+      createdBy: demoUser._id
+    });
+
+    const inv2 = await Invoice.create({
+      company: companyId,
+      invoiceNumber: 'INV-2026-0002',
+      invoiceDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      dueDate: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000),
+      operation: opDel2._id,
+      sourceWarehouse: whMumbai._id,
+      customer: opDel2.customer,
+      items: [{
+        product: pParacetamolAPI._id,
+        name: pParacetamolAPI.name,
+        sku: pParacetamolAPI.sku,
+        quantity: 15,
+        unitPrice: 1850,
+        taxRate: 18,
+        taxAmount: cgst2 + sgst2,
+        discount: 0,
+        lineTotal: subtotal2
+      }],
+      subtotal: subtotal2,
+      taxBreakdown: { cgst: cgst2, sgst: sgst2, igst: 0, totalTax: cgst2 + sgst2 },
+      isInterState: false,
+      shippingCharge: 0,
+      totalAmount: total2,
+      paidAmount: partialPaid2,
+      status: 'PARTIALLY_PAID',
+      paymentMethod: 'UPI',
+      paymentReference: 'UPI-ICICI-881920',
+      paymentDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      payments: [{
+        receiptNumber: 'RCP-2026-0002',
+        amount: partialPaid2,
+        paymentDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        paymentMethod: 'UPI',
+        transactionReference: 'UPI-ICICI-881920',
+        payerDetails: 'sunpharma.finance@icici',
+        status: 'SUCCESS'
+      }],
+      createdBy: demoUser._id,
+      owner: demoUser._id
+    });
+    opDel2.invoice = inv2._id;
+    await opDel2.save();
+
+    // 7. Completed Delivery 3: Infosys BPM Ltd (SENT, Inter-State IGST 18%)
+    const subtotal3 = 5 * 24500; // 122,500
+    const igst3 = Math.round(subtotal3 * 0.18 * 100) / 100; // 22,050
+    const total3 = subtotal3 + igst3; // 144,550
+
+    const opDel3 = await Operation.create({
+      company: companyId,
+      owner: demoUser._id,
+      type: 'DELIVERY',
+      sourceWarehouse: whMumbai._id,
+      items: [{ product: pSolarInverter._id, quantity: 5, unitPrice: 24500 }],
+      status: 'VALIDATED',
+      approvalStatus: 'NOT_REQUIRED',
+      customer: {
+        companyName: 'Infosys BPM Ltd',
+        name: 'Infosys BPM Ltd',
+        contactName: 'Ananya Deshmukh',
+        email: 'facilities.blr@infosys.com',
+        phone: '+91 80 2852 0261',
+        gstin: '29AABCI1234F1Z9',
+        address: {
+          street: 'Plot 44, Electronic City, Hosur Road',
+          city: 'Bengaluru',
+          state: 'Karnataka',
+          pincode: '560100',
+          country: 'India'
+        }
+      },
+      createdBy: demoUser._id
+    });
+
+    const inv3 = await Invoice.create({
+      company: companyId,
+      invoiceNumber: 'INV-2026-0003',
+      invoiceDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      dueDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      operation: opDel3._id,
+      sourceWarehouse: whMumbai._id,
+      customer: opDel3.customer,
+      items: [{
+        product: pSolarInverter._id,
+        name: pSolarInverter.name,
+        sku: pSolarInverter.sku,
+        quantity: 5,
+        unitPrice: 24500,
+        taxRate: 18,
+        taxAmount: igst3,
+        discount: 0,
+        lineTotal: subtotal3
+      }],
+      subtotal: subtotal3,
+      taxBreakdown: { cgst: 0, sgst: 0, igst: igst3, totalTax: igst3 },
+      isInterState: true,
+      shippingCharge: 0,
+      totalAmount: total3,
+      paidAmount: 0,
+      status: 'SENT',
+      createdBy: demoUser._id,
+      owner: demoUser._id
+    });
+    opDel3.invoice = inv3._id;
+    await opDel3.save();
 
     // -------------------------------------------------------------
     // PHYSICAL STOCK AUDITS (Testing Variance & Recount Flows)
@@ -726,6 +959,7 @@ const seedDemoData = async () => {
     ledgers: await StockLedger.countDocuments(),
     layers: await StockLayer.countDocuments(),
     operations: await Operation.countDocuments(),
+    invoices: await Invoice.countDocuments(),
     audits: await Audit.countDocuments(),
     reservations: await Reservation.countDocuments()
   };

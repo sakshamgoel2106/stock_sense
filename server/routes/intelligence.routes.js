@@ -7,7 +7,8 @@ const {
   getTransfers,
   proposeTransfer,
   simulateScenario,
-  copilotChat
+  copilotChat,
+  refreshIntelligence
 } = require('../controllers/intelligence.controller');
 
 const { protect, requireCompany } = require('../middleware/auth.middleware');
@@ -15,6 +16,7 @@ const { protect, requireCompany } = require('../middleware/auth.middleware');
 router.use(protect);
 router.use(requireCompany);
 
+router.post('/refresh', refreshIntelligence);
 router.get('/overview', getOverview);
 router.get('/recommendations', getRecommendations);
 router.get('/forecast/:productId', getProductForecast);

@@ -7,6 +7,7 @@ const {
   getInvoiceById,
   createInvoice,
   createInvoiceFromDelivery,
+  updateInvoice,
   recordPayment,
   updateInvoiceStatus
 } = require('../controllers/invoice.controller');
@@ -22,6 +23,7 @@ router.get('/', getInvoices);
 router.post('/', authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), createInvoice);
 router.post('/from-delivery/:operationId', authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER', 'WORKER'), createInvoiceFromDelivery);
 router.get('/:id', getInvoiceById);
+router.put('/:id', authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), updateInvoice);
 router.post('/:id/payment', authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), recordPayment);
 router.put('/:id/status', authorize('COMPANY_ADMIN', 'ADMIN', 'MANAGER'), updateInvoiceStatus);
 

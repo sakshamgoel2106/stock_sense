@@ -58,7 +58,7 @@ router.route('/members/:id')
 
 router.route('/invitations')
   .post(authorize('COMPANY_ADMIN'), createInvitation)
-  .get(authorize('COMPANY_ADMIN'), getInvitations);
+  .get(authorize('COMPANY_ADMIN', 'MANAGER'), getInvitations);
 
 router.route('/invitations/:id')
   .delete(authorize('COMPANY_ADMIN'), revokeInvitation);

@@ -135,7 +135,6 @@ const Layout = () => {
       { to: "/aging", icon: <Clock size={18} />, label: "Stock Aging" },
       { to: "/forecasting", icon: <TrendingUp size={18} />, label: "Forecasting" },
       { to: "/valuation", icon: <DollarSign size={18} />, label: "Valuation" },
-      { to: "/approvals", icon: <CheckSquare size={18} />, label: "Transfer Approvals" },
     ] : []),
     { to: "/reservations", icon: <Bookmark size={18} />, label: "Reservations" },
     { to: "/audits", icon: <ClipboardCheck size={18} />, label: "Smart Audits" },

@@ -59,15 +59,21 @@ const TeamManagement = () => {
       setLoading(true);
       const [mRes, iRes, wRes] = await Promise.all([
         api.get('/companies/members'),
-        api.get('/companies/invitations'),
-        api.get('/warehouses')
+        api.get('/companies/invitations').catch(err => {
+          console.warn('Invitations load warning:', err?.response?.status);
+          return { data: [] };
+        }),
+        api.get('/warehouses').catch(err => {
+          console.warn('Warehouses load warning:', err?.response?.status);
+          return { data: [] };
+        })
       ]);
-      setMembers(mRes.data);
-      setInvitations(iRes.data);
-      setWarehouses(wRes.data);
+      setMembers(mRes.data || []);
+      setInvitations(iRes.data || []);
+      setWarehouses(wRes.data || []);
     } catch (err) {
       console.error(err);
-      toast.error('Failed to load team data');
+      toast.error(err?.response?.data?.message || 'Failed to load team data');
     } finally {
       setLoading(false);
     }
@@ -237,6 +243,20 @@ const TeamManagement = () => {
   };
 
   const pendingRemovalMembers = members.filter(m => m.status === 'PENDING_REMOVAL');
+
+  if (!isManager && !loading) {
+    return (
+      <div className="max-w-md mx-auto my-16 bg-white p-8 rounded-2xl border border-gray-200 text-center shadow-sm">
+        <div className="w-14 h-14 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <ShieldAlert size={28} />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h2>
+        <p className="text-sm text-gray-500">
+          Team & Organization Management is reserved for Company Admins and Managers. Please contact your organization administrator for permission changes.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-16 max-w-6xl mx-auto">
@@ -489,15 +509,15 @@ const TeamManagement = () => {
                         </td>
 
                         <td className="px-6 py-4">
-                          {m.warehouseIds?.length === 0 ? (
+                          {(m.warehouseIds?.length || 0) === 0 ? (
                             <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-100 flex items-center gap-1.5 w-fit">
                               <CheckCircle size={13} /> Unrestricted (All 4 Regional Hubs)
                             </span>
                           ) : (
                             <div className="flex flex-wrap gap-1.5">
-                              {m.warehouseIds?.map(w => (
-                                <span key={w._id} className="text-xs bg-gray-100 text-gray-800 px-2.5 py-1 rounded-lg border border-gray-200 flex items-center gap-1 font-medium">
-                                  <MapPin size={11} className="text-indigo-600" /> {w.name}
+                              {m.warehouseIds?.map((w, idx) => (
+                                <span key={w?._id || idx} className="text-xs bg-gray-100 text-gray-800 px-2.5 py-1 rounded-lg border border-gray-200 flex items-center gap-1 font-medium">
+                                  <MapPin size={11} className="text-indigo-600" /> {w?.name || 'Assigned Hub'}
                                 </span>
                               ))}
                             </div>
@@ -624,10 +644,10 @@ const TeamManagement = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-xs">
-                        {inv.warehouseIds?.length === 0 ? (
+                        {(inv.warehouseIds?.length || 0) === 0 ? (
                           <span className="text-emerald-700 font-semibold">All Warehouses</span>
                         ) : (
-                          inv.warehouseIds?.map(w => w.name).join(', ')
+                          inv.warehouseIds?.map(w => w?.name || 'Assigned Hub').join(', ')
                         )}
                       </td>
                       <td className="px-6 py-4">

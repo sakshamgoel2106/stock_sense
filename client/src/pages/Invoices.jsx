@@ -4,7 +4,7 @@ import {
   DollarSign, CheckCircle2, Clock, AlertTriangle, Eye, 
   ArrowUpRight, Building2, Truck, RefreshCw, Download,
   TrendingUp, Sparkles, ShieldCheck, Share2, Copy, ChevronRight,
-  Calendar, Layers, Check, ArrowRight, UserCheck, Tag, X
+  Calendar, Layers, Check, ArrowRight, UserCheck, Tag, X, Edit3
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import * as XLSX from 'xlsx';
@@ -12,6 +12,7 @@ import api from '../lib/api';
 import FeatureGuide from '../components/FeatureGuide';
 import InvoiceDetailModal from '../components/InvoiceDetailModal';
 import CreateInvoiceModal from '../components/CreateInvoiceModal';
+import EditInvoiceModal from '../components/EditInvoiceModal';
 import PaymentReceiptModal from '../components/PaymentReceiptModal';
 
 const Invoices = () => {
@@ -44,6 +45,8 @@ const Invoices = () => {
 
   // Modals state
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [invoiceToEdit, setInvoiceToEdit] = useState(null);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
@@ -639,6 +642,17 @@ const Invoices = () => {
                               >
                                 <Eye size={13} /> View Bill
                               </button>
+
+                              <button
+                                onClick={() => {
+                                  setInvoiceToEdit(inv);
+                                  setShowEditModal(true);
+                                }}
+                                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-amber-50 text-slate-700 hover:text-amber-700 font-bold text-xs transition-colors flex items-center gap-1"
+                                title="Edit Customer Details, Line Items or GST Slabs"
+                              >
+                                <Edit3 size={13} className="text-amber-600" /> Edit
+                              </button>
                               
                               <button
                                 onClick={() => handleOpenDetail(inv)}
@@ -922,6 +936,20 @@ const Invoices = () => {
         isOpen={showReceiptModal}
         onClose={() => setShowReceiptModal(false)}
         payment={selectedReceipt}
+      />
+
+      {/* ── Edit Tax Invoice Modal ── */}
+      <EditInvoiceModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setInvoiceToEdit(null);
+        }}
+        invoice={invoiceToEdit}
+        onSuccess={() => {
+          fetchInvoices();
+          fetchStats();
+        }}
       />
 
     </div>

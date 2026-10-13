@@ -467,7 +467,11 @@ const createInvoice = asyncHandler(async (req, res) => {
   }
 
   const savedInvoice = await invoice.save();
-  res.status(201).json(savedInvoice);
+  const populatedInvoice = await Invoice.findById(savedInvoice._id)
+    .populate('company', 'name code gstin address city state pincode phone email')
+    .populate('sourceWarehouse', 'name code location')
+    .populate('items.product', 'name sku prices unitOfMeasure');
+  res.status(201).json(populatedInvoice);
 });
 
 // @desc    Generate customer bill directly from a DELIVERY operation
@@ -495,13 +499,31 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
     );
   }
 
+  // Auto-dispatch and deliver goods if operation is in DRAFT (default: true)
+  if (operation.status === 'DRAFT' && req.body.dispatchGoods !== false) {
+    try {
+      const userRole = req.membership ? req.membership.role : (req.user ? req.user.role : null);
+      await validateOperation(operation._id, userId, userRole);
+      const reloaded = await Operation.findById(operationId)
+        .populate('items.product', 'name sku prices')
+        .populate('sourceWarehouse', 'name code');
+      if (reloaded) {
+        operation.status = reloaded.status;
+        operation.validatedAt = reloaded.validatedAt;
+      }
+    } catch (dispatchErr) {
+      res.status(400);
+      throw new Error(`Delivery Dispatch Failed: ${dispatchErr.message}`);
+    }
+  }
+
   // Check if invoice already exists for this operation
-  const existingInvoice = await Invoice.findOne({ operation: operation._id });
+  const existingInvoice = await Invoice.findOne({ operation: operation._id })
+    .populate('company', 'name code gstin address city state pincode phone email')
+    .populate('sourceWarehouse', 'name code location')
+    .populate('items.product', 'name sku prices unitOfMeasure');
   if (existingInvoice) {
-    return res.json({
-      message: 'Invoice already exists for this delivery',
-      invoice: existingInvoice
-    });
+    return res.json(existingInvoice);
   }
 
   // Build items from delivery operation
@@ -519,14 +541,41 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
     };
   });
 
-  const { processedItems, subtotal, taxBreakdown, totalAmount } = calculateInvoiceTotals(enrichedItems, false, 0, 0);
+  const isInterState = Boolean(req.body?.isInterState);
+  const { processedItems, subtotal, taxBreakdown, totalAmount } = calculateInvoiceTotals(enrichedItems, isInterState, 0, 0);
 
   const invoiceNumber = await generateInvoiceNumber(companyId);
 
-  const customerName = req.body?.customer?.name || operation.customer?.name || 'Customer / Consignee';
-  const customerPhone = req.body?.customer?.phone || operation.customer?.phone || '';
-  const customerEmail = req.body?.customer?.email || operation.customer?.email || '';
-  const customerAddress = req.body?.customer?.address || operation.customer?.address || '';
+  // Recipient Company & Contact Details
+  const reqCust = req.body?.customer || {};
+  const opCust = operation.customer || {};
+
+  const companyName = (reqCust.companyName || reqCust.name || opCust.companyName || opCust.name || '').trim();
+  const contactName = (reqCust.contactName || reqCust.name || opCust.name || '').trim();
+  const customerName = companyName || contactName || 'Client Company';
+  const customerPhone = (reqCust.phone || opCust.phone || '').trim();
+  const customerEmail = (reqCust.email || opCust.email || '').trim();
+  const customerGstin = (reqCust.gstin || opCust.gstin || '').trim().toUpperCase();
+
+  // Normalize address
+  const rawAddr = reqCust.address || opCust.address || {};
+  let addressObj = {
+    street: '',
+    city: '',
+    state: '',
+    pincode: '',
+    country: 'India'
+  };
+
+  if (typeof rawAddr === 'string') {
+    addressObj.street = rawAddr;
+  } else if (typeof rawAddr === 'object') {
+    addressObj.street = rawAddr.street || '';
+    addressObj.city = rawAddr.city || '';
+    addressObj.state = rawAddr.state || '';
+    addressObj.pincode = rawAddr.pincode || '';
+    addressObj.country = rawAddr.country || 'India';
+  }
 
   const invoice = new Invoice({
     company: companyId,
@@ -537,15 +586,16 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
     sourceWarehouse: operation.sourceWarehouse?._id || operation.sourceWarehouse,
     customer: {
       name: customerName,
+      companyName: companyName,
       phone: customerPhone,
       email: customerEmail,
-      gstin: req.body?.customer?.gstin || '',
-      address: typeof customerAddress === 'string' ? { street: customerAddress, country: 'India' } : customerAddress
+      gstin: customerGstin,
+      address: addressObj
     },
     items: processedItems,
     subtotal,
     taxBreakdown,
-    isInterState: false,
+    isInterState,
     shippingCharge: 0,
     totalAmount,
     currency: 'INR',
@@ -558,11 +608,27 @@ const createInvoiceFromDelivery = asyncHandler(async (req, res) => {
 
   const savedInvoice = await invoice.save();
 
-  // Link invoice back to delivery operation
+  // Link invoice back to delivery operation and store recipient company details on operation
   operation.invoice = savedInvoice._id;
+  if (companyName || customerGstin || addressObj.street) {
+    operation.customer = {
+      name: contactName || customerName,
+      companyName,
+      phone: customerPhone,
+      email: customerEmail,
+      gstin: customerGstin,
+      address: addressObj
+    };
+  }
   await operation.save();
 
-  res.status(201).json(savedInvoice);
+  const populatedInvoice = await Invoice.findById(savedInvoice._id)
+    .populate('company', 'name code gstin address city state pincode phone email')
+    .populate('sourceWarehouse', 'name code location')
+    .populate('items.product', 'name sku prices unitOfMeasure')
+    .populate('operation', 'type status validatedAt');
+
+  res.status(201).json(populatedInvoice);
 });
 
 // @desc    Record payment for an invoice with complete payment receipt tracking
@@ -667,6 +733,118 @@ const updateInvoiceStatus = asyncHandler(async (req, res) => {
   res.json(updated);
 });
 
+// @desc    Update invoice details (company details, items, financial adjustments, terms)
+// @route   PUT /api/v1/invoices/:id
+// @access  Private
+const updateInvoice = asyncHandler(async (req, res) => {
+  const companyId = req.company ? req.company._id : null;
+  const invoice = await Invoice.findById(req.params.id);
+
+  if (!invoice) {
+    res.status(404);
+    throw new Error('Invoice not found');
+  }
+
+  if (companyId && invoice.company.toString() !== companyId.toString()) {
+    res.status(403);
+    throw new Error('Not authorized to modify this invoice');
+  }
+
+  const {
+    customer,
+    items,
+    dueDate,
+    isInterState,
+    shippingCharge,
+    discountTotal,
+    notes,
+    terms,
+    status
+  } = req.body;
+
+  // 1. Update customer & recipient company details
+  if (customer) {
+    const companyName = (customer.companyName || customer.name || invoice.customer?.companyName || invoice.customer?.name || '').trim();
+    const contactName = (customer.contactName || customer.name || invoice.customer?.name || '').trim();
+
+    invoice.customer.name = companyName || contactName || invoice.customer.name;
+    invoice.customer.companyName = companyName || invoice.customer.companyName || '';
+    if (customer.email !== undefined) invoice.customer.email = customer.email.trim();
+    if (customer.phone !== undefined) invoice.customer.phone = customer.phone.trim();
+    if (customer.gstin !== undefined) invoice.customer.gstin = customer.gstin.trim().toUpperCase();
+
+    if (customer.address) {
+      if (typeof customer.address === 'string') {
+        invoice.customer.address.street = customer.address;
+      } else if (typeof customer.address === 'object') {
+        if (customer.address.street !== undefined) invoice.customer.address.street = customer.address.street;
+        if (customer.address.city !== undefined) invoice.customer.address.city = customer.address.city;
+        if (customer.address.state !== undefined) invoice.customer.address.state = customer.address.state;
+        if (customer.address.pincode !== undefined) invoice.customer.address.pincode = customer.address.pincode;
+        if (customer.address.country !== undefined) invoice.customer.address.country = customer.address.country;
+      }
+    }
+
+    // Keep linked delivery operation in sync
+    if (invoice.operation) {
+      await Operation.findByIdAndUpdate(invoice.operation, {
+        customer: {
+          name: contactName || companyName,
+          companyName,
+          phone: invoice.customer.phone,
+          email: invoice.customer.email,
+          gstin: invoice.customer.gstin,
+          address: invoice.customer.address
+        }
+      });
+    }
+  }
+
+  // 2. Metadata updates
+  if (dueDate) invoice.dueDate = new Date(dueDate);
+  if (notes !== undefined) invoice.notes = notes;
+  if (terms !== undefined) invoice.terms = terms;
+  if (isInterState !== undefined) invoice.isInterState = Boolean(isInterState);
+  if (shippingCharge !== undefined) invoice.shippingCharge = Number(shippingCharge) || 0;
+  if (discountTotal !== undefined) invoice.discountTotal = Number(discountTotal) || 0;
+
+  // 3. Recalculate totals if line items or adjustments changed
+  const itemsToProcess = items || invoice.items;
+  if (items || isInterState !== undefined || shippingCharge !== undefined || discountTotal !== undefined) {
+    const { processedItems, subtotal, taxBreakdown, totalAmount } = calculateInvoiceTotals(
+      itemsToProcess,
+      invoice.isInterState,
+      invoice.shippingCharge,
+      invoice.discountTotal
+    );
+
+    invoice.items = processedItems;
+    invoice.subtotal = subtotal;
+    invoice.taxBreakdown = taxBreakdown;
+    invoice.totalAmount = totalAmount;
+
+    if (invoice.paidAmount >= invoice.totalAmount) {
+      invoice.status = 'PAID';
+    } else if (invoice.paidAmount > 0) {
+      invoice.status = 'PARTIALLY_PAID';
+    } else if (status) {
+      invoice.status = status;
+    }
+  } else if (status) {
+    invoice.status = status;
+  }
+
+  await invoice.save();
+
+  const populatedInvoice = await Invoice.findById(invoice._id)
+    .populate('company', 'name code gstin address city state pincode phone email')
+    .populate('sourceWarehouse', 'name code location')
+    .populate('items.product', 'name sku prices unitOfMeasure')
+    .populate('payments.recordedBy', 'name email');
+
+  res.json(populatedInvoice);
+});
+
 module.exports = {
   getInvoices,
   getAllPayments,
@@ -674,6 +852,7 @@ module.exports = {
   getInvoiceById,
   createInvoice,
   createInvoiceFromDelivery,
+  updateInvoice,
   recordPayment,
   updateInvoiceStatus
 };

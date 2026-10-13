@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Printer, CheckCircle2, Clock, AlertTriangle, 
   Building2, Phone, Mail, MapPin, Receipt, CreditCard, 
   DollarSign, ArrowUpRight, ShieldCheck, QrCode, Copy, Check,
   Share2, FileText, Send, Sparkles, ExternalLink, Truck,
-  BadgeCheck, Stamp, Plus, Calendar, UserCheck
+  BadgeCheck, Stamp, Plus, Calendar, UserCheck, Edit3
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../lib/api';
 import PaymentReceiptModal from './PaymentReceiptModal';
+import EditInvoiceModal from './EditInvoiceModal';
 
 // Helper to convert number to Indian words
 function numberToIndianWords(num) {
@@ -43,7 +44,14 @@ function getProductHSN(name, sku) {
   return '8471.30.10';
 }
 
-const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
+const InvoiceDetailModal = ({ isOpen, onClose, invoice: initialInvoice, onPaymentSuccess }) => {
+  const [invoice, setInvoice] = useState(initialInvoice);
+  const [showEditModal, setShowEditModal] = useState(false);
+
+  useEffect(() => {
+    setInvoice(initialInvoice);
+  }, [initialInvoice]);
+
   const [copyType, setCopyType] = useState('ORIGINAL'); // ORIGINAL, DUPLICATE, TRIPLICATE
   const [recordingPayment, setRecordingPayment] = useState(false);
   
@@ -216,6 +224,14 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
             >
               {copiedLink ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
               <span>{copiedLink ? 'Copied' : 'Copy'}</span>
+            </button>
+
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-colors border border-slate-700/80"
+              title="Edit Client Company Details, Line Items or GST Slabs"
+            >
+              <Edit3 size={13} className="text-amber-400" /> Edit Bill
             </button>
 
             {!isPaid && !recordingPayment && (
@@ -461,20 +477,42 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
               
               {/* Bill To */}
               <div className="p-3 bg-white">
-                <div className="font-black uppercase text-[10px] text-slate-700 mb-1">
-                  Details of Receiver (Billed To):
+                <div className="font-black uppercase text-[10px] text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Details of Receiver (Billed To):</span>
+                  {invoice.customer?.gstin ? (
+                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                      B2B Registered
+                    </span>
+                  ) : (
+                    <span className="text-[9px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                      Commercial
+                    </span>
+                  )}
                 </div>
-                <div className="text-xs font-black text-slate-900 uppercase">
-                  {invoice.customer?.name}
+                <div className="text-sm font-black text-slate-900 uppercase tracking-tight">
+                  {invoice.customer?.companyName || invoice.customer?.name || 'Client Company'}
                 </div>
-                <div className="text-[10px] text-slate-600 mt-0.5 leading-snug">
-                  {invoice.customer?.address?.street || 'Commercial Delivery Point'}, {invoice.customer?.address?.city || ''} {invoice.customer?.address?.state || 'India'}
-                </div>
-                {invoice.customer?.phone && (
-                  <div className="text-[10px] text-slate-600 mt-0.5">
-                    Phone: <span className="font-mono text-slate-900">{invoice.customer.phone}</span>
+                {invoice.customer?.companyName && invoice.customer?.name && invoice.customer.companyName !== invoice.customer.name && (
+                  <div className="text-[10px] text-slate-600 font-semibold mt-0.5">
+                    Attn: {invoice.customer.name}
                   </div>
                 )}
+                <div className="text-[10px] text-slate-600 mt-1 leading-snug">
+                  {[
+                    invoice.customer?.address?.street,
+                    invoice.customer?.address?.city,
+                    invoice.customer?.address?.state,
+                    invoice.customer?.address?.pincode
+                  ].filter(Boolean).join(', ') || 'Commercial Delivery Point, India'}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-slate-600">
+                  {invoice.customer?.phone && (
+                    <div>Phone: <span className="font-mono text-slate-900 font-semibold">{invoice.customer.phone}</span></div>
+                  )}
+                  {invoice.customer?.email && (
+                    <div>Email: <span className="font-mono text-slate-900 font-semibold">{invoice.customer.email}</span></div>
+                  )}
+                </div>
                 <div className="mt-2 text-[10px] font-mono">
                   <span>GSTIN / Unique ID: </span>
                   <strong className="text-indigo-900 font-black">
@@ -736,6 +774,17 @@ const InvoiceDetailModal = ({ isOpen, onClose, invoice, onPaymentSuccess }) => {
         onClose={() => setShowReceiptModal(false)}
         payment={selectedReceipt}
         invoice={invoice}
+      />
+
+      {/* Edit Bill Modal */}
+      <EditInvoiceModal
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        invoice={invoice}
+        onSuccess={(updated) => {
+          setInvoice(updated);
+          if (onPaymentSuccess) onPaymentSuccess(updated);
+        }}
       />
 
     </div>

@@ -10,7 +10,7 @@ const { validateOperation } = require('../services/inventory.service');
 // @route   POST /api/v1/inventory/operations
 // @access  Private
 const createOperation = asyncHandler(async (req, res) => {
-  const { type, sourceWarehouse, destinationWarehouse, items } = req.body;
+  const { type, sourceWarehouse, destinationWarehouse, items, customer } = req.body;
   
   if (!items || items.length === 0) {
     res.status(400);
@@ -23,6 +23,7 @@ const createOperation = asyncHandler(async (req, res) => {
     sourceWarehouse,
     destinationWarehouse,
     items,
+    customer: customer || {},
     createdBy: req.user ? req.user._id : null,
     approvalStatus: requiresApproval ? 'PENDING' : 'NOT_REQUIRED',
     company: req.company ? req.company._id : null,

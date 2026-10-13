@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -92,7 +92,7 @@ function App() {
               <Route path="forecasting" element={<StockForecasting />} />
               <Route path="valuation" element={<InventoryValuation />} />
               <Route path="reservations" element={<Reservations />} />
-              <Route path="approvals" element={<TransferApprovals />} />
+              <Route path="approvals" element={<Navigate to="/transfers?tab=approvals" replace />} />
               <Route path="audits" element={<AuditList />} />
               <Route path="audits/new" element={<AuditForm />} />
               <Route path="audits/:id/count" element={<AuditForm />} />

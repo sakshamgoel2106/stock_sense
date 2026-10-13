@@ -3,6 +3,7 @@ const Stock = require('../models/Stock');
 const StockLedger = require('../models/StockLedger');
 const Operation = require('../models/Operation');
 const StockLayer = require('../models/StockLayer');
+const intelligenceCache = require('./intelligenceCache.service');
 
 /**
  * Ensures atomicity when processing stock changes.
@@ -75,6 +76,9 @@ const _updateStock = async (product, warehouse, quantityChange, session, company
   stock.quantity = newQuantity;
   await stock.save({ session });
   
+  // Invalidate intelligence cache on stock level change
+  try { intelligenceCache.invalidate(); } catch (e) {}
+
   return { previousQuantity, newQuantity };
 };
 
