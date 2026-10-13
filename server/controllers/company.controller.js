@@ -178,7 +178,10 @@ const updateMemberWarehouses = asyncHandler(async (req, res) => {
   if (warehouseIds && warehouseIds.length > 0) {
     const validWarehouses = await Warehouse.find({
       _id: { $in: warehouseIds },
-      owner: req.company._id
+      $or: [
+        { company: req.company._id },
+        { owner: req.company._id }
+      ]
     });
     if (validWarehouses.length !== warehouseIds.length) {
       res.status(400);
@@ -282,7 +285,10 @@ const createInvitation = asyncHandler(async (req, res) => {
   if (warehouseIds.length > 0) {
     const validWarehouses = await Warehouse.find({
       _id: { $in: warehouseIds },
-      owner: req.company._id
+      $or: [
+        { company: req.company._id },
+        { owner: req.company._id }
+      ]
     });
     if (validWarehouses.length !== warehouseIds.length) {
       res.status(400);
@@ -479,7 +485,10 @@ const addMemberDirect = asyncHandler(async (req, res) => {
   if (warehouseIds && warehouseIds.length > 0) {
     const validWarehouses = await Warehouse.find({
       _id: { $in: warehouseIds },
-      owner: req.company._id
+      $or: [
+        { company: req.company._id },
+        { owner: req.company._id }
+      ]
     });
     if (validWarehouses.length !== warehouseIds.length) {
       res.status(400);

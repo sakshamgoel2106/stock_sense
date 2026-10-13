@@ -65,9 +65,13 @@ export default function Login() {
           </div>
 
           {/* Heading */}
-          <div className="mb-8">
+          <div className="mb-6">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sign in to your account</h1>
             <p className="mt-1.5 text-sm text-gray-500">Welcome back — your inventory awaits.</p>
+            <div className="mt-3 p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-900 flex items-start gap-2">
+              <span className="font-bold shrink-0">🔑 Have an Invite Code?</span>
+              <span className="text-indigo-700">Sign in with your invited email. You'll be prompted to enter your invite code on the onboarding screen.</span>
+            </div>
           </div>
 
 

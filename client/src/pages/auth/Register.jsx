@@ -6,9 +6,9 @@ import { motion } from "motion/react";
 import { GoogleLogin } from '@react-oauth/google';
 
 const ROLES = [
-  { value: 'WORKER', label: 'Warehouse Staff (Worker)', desc: 'Floor operations, receipts, deliveries & assigned stock view' },
-  { value: 'MANAGER', label: 'Inventory Manager', desc: 'Logistics review, replenishment, audit reconciliation & transfer approvals' },
-  { value: 'COMPANY_ADMIN', label: 'Company Admin / Executive', desc: 'Supreme authority: Full control over all approvals, hubs, members & settings' },
+  { value: 'WORKER', label: 'Worker', desc: 'Floor operations, receipts, deliveries & physical counts' },
+  { value: 'MANAGER', label: 'Manager', desc: 'Logistics review, replenishment & transfer approvals' },
+  { value: 'COMPANY_ADMIN', label: 'Admin', desc: 'Executive control: hubs, team members & settings' },
 ];
 
 export default function Register() {
@@ -59,20 +59,24 @@ export default function Register() {
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* ── Left panel: form ── */}
-      <div className="flex flex-1 flex-col justify-center px-6 py-12 lg:px-16 xl:px-24 bg-white shadow-xl z-10 overflow-y-auto">
-        <div className="mx-auto w-full max-w-sm">
+      <div className="flex flex-1 flex-col px-6 py-8 lg:px-16 xl:px-24 bg-white shadow-xl z-10 overflow-y-auto">
+        <div className="mx-auto w-full max-w-sm my-auto py-6">
           {/* Logo */}
-          <div className="flex items-center gap-2.5 mb-8">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600">
+          <div className="flex items-center gap-2.5 mb-6">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 shadow-sm">
               <Package className="h-5 w-5 text-white" />
             </div>
             <span className="text-xl font-bold tracking-tight text-gray-900">StockSense</span>
           </div>
 
           {/* Heading */}
-          <div className="mb-7">
+          <div className="mb-6">
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">Create your account</h1>
-            <p className="mt-1.5 text-sm text-gray-500">Join your team and start managing inventory.</p>
+            <p className="mt-1 text-sm text-gray-500">Join your team and start managing inventory.</p>
+            <div className="mt-3 p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-900 flex items-start gap-2">
+              <span className="font-bold shrink-0">🔑 Invited by Admin?</span>
+              <span className="text-indigo-700">Register with your invited email. You'll enter your single-use invite code on the next screen.</span>
+            </div>
           </div>
 
           {/* Error */}
@@ -84,14 +88,14 @@ export default function Register() {
           )}
 
           {/* Google */}
-          <div className="flex justify-center mb-5">
+          <div className="flex justify-center mb-5 w-full">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
               onError={() => setError('Google sign up failed')}
               shape="rectangular"
               size="large"
               text="signup_with"
-              width={384}
+              width="384"
             />
           </div>
 
@@ -111,38 +115,34 @@ export default function Register() {
             <InputField label="Email Address" type="email" value={email} onChange={setEmail} placeholder="jane@company.com" required />
             <InputField label="Password" type="password" value={password} onChange={setPassword} placeholder="Min. 6 characters" required />
 
-            {/* Role selector */}
+            {/* Compact Role selector */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Select your role</label>
-              <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-gray-700 mb-1.5">
+                Intended Role
+              </label>
+              <div className="grid grid-cols-3 gap-2">
                 {ROLES.map((r) => (
-                  <label
+                  <button
                     key={r.value}
-                    className={`flex items-start gap-3 cursor-pointer rounded-lg border p-3 transition-all ${
+                    type="button"
+                    onClick={() => setRole(r.value)}
+                    className={`py-2 px-1 text-center rounded-xl border text-xs transition-all ${
                       role === r.value
-                        ? 'border-indigo-500 bg-indigo-50 ring-1 ring-indigo-500'
-                        : 'border-gray-200 bg-white hover:border-gray-300'
+                        ? 'border-indigo-600 bg-indigo-50/80 text-indigo-700 font-bold ring-1 ring-indigo-600 shadow-sm'
+                        : 'border-gray-200 bg-gray-50/60 text-gray-600 font-medium hover:bg-gray-100 hover:text-gray-900'
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="role"
-                      value={r.value}
-                      checked={role === r.value}
-                      onChange={() => setRole(r.value)}
-                      className="mt-0.5 accent-indigo-600"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{r.label}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{r.desc}</p>
-                    </div>
-                  </label>
+                    {r.label}
+                  </button>
                 ))}
               </div>
+              <p className="text-[11px] text-gray-400 mt-1">
+                {ROLES.find(r => r.value === role)?.desc}
+              </p>
             </div>
 
             {/* Terms checkbox */}
-            <label className="flex items-start gap-3 cursor-pointer">
+            <label className="flex items-start gap-3 cursor-pointer pt-1">
               <div className="relative mt-0.5 shrink-0">
                 <input
                   type="checkbox"
@@ -183,7 +183,7 @@ export default function Register() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
+          <p className="mt-5 text-center text-sm text-gray-500">
             Already have an account?{' '}
             <Link to="/login" className="font-semibold text-indigo-600 hover:text-indigo-500">
               Sign in

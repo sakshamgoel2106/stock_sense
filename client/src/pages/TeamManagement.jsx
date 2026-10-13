@@ -848,11 +848,25 @@ const TeamManagement = () => {
                       <button
                         type="button"
                         onClick={() => copyToClipboard(generatedInvite.rawToken)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 rounded-lg shrink-0"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg shrink-0 flex items-center gap-1.5 text-xs font-bold"
+                        title="Copy Invitation Code"
                       >
-                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                        {copied ? <Check size={15} /> : <Copy size={15} />}
+                        <span>{copied ? 'Copied!' : 'Copy Code'}</span>
                       </button>
                     </div>
+                  </div>
+
+                  <div className="bg-indigo-50/80 border border-indigo-100 rounded-xl p-3.5 text-xs text-indigo-950 space-y-2 text-left">
+                    <div className="font-bold flex items-center gap-1.5 text-indigo-900">
+                      <Info size={15} className="text-indigo-600 shrink-0" /> Where the worker logs in with this code:
+                    </div>
+                    <ol className="list-decimal list-inside text-gray-700 space-y-1 pl-1">
+                      <li>Worker registers or signs in at <b>/register</b> or <b>/login</b> using <b>{generatedInvite.invitation.email}</b>.</li>
+                      <li>Because they have no company yet, they are automatically routed to the <b>Onboarding screen (/onboarding)</b>.</li>
+                      <li>They click the <b>"Join with Invite"</b> tab.</li>
+                      <li>They paste this code and click <b>"Join Company Workspace"</b>.</li>
+                    </ol>
                   </div>
 
                   <button

@@ -10,6 +10,19 @@ const CompanyOnboarding = () => {
   const navigate = useNavigate();
   const [activeMode, setActiveMode] = useState('create'); // 'create' or 'join'
 
+  // Auto-detect URL query params (e.g. /onboarding?token=XYZ or /onboarding?tab=join)
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token') || params.get('code');
+    const tab = params.get('tab') || params.get('mode');
+    if (token) {
+      setInviteToken(token);
+      setActiveMode('join');
+    } else if (tab === 'join') {
+      setActiveMode('join');
+    }
+  }, []);
+
   // Create Company state
   const [companyName, setCompanyName] = useState('');
   const [companyCode, setCompanyCode] = useState('');
