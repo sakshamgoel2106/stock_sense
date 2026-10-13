@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Eye, EyeOff, Package, BarChart3, Boxes, Warehouse } from "lucide-react";
+import { Eye, EyeOff, Package, BarChart3, Boxes, Warehouse, Key, Lock, ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 import { GoogleLogin } from '@react-oauth/google';
 import toast from 'react-hot-toast';
@@ -13,12 +13,27 @@ const FEATURES = [
 ];
 
 export default function Login() {
+  const [authMethod, setAuthMethod] = useState('password'); // 'password' or 'invite'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [inviteToken, setInviteToken] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const { login, googleLogin } = useAuth();
+  const { login, inviteLogin, googleLogin } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('token') || params.get('code');
+    const mail = params.get('email');
+    if (code) {
+      setInviteToken(code);
+      setAuthMethod('invite');
+    }
+    if (mail) {
+      setEmail(mail);
+    }
+  }, []);
 
   const handleGoogleSuccess = async (credentialResponse) => {
     try {
@@ -35,7 +50,7 @@ export default function Login() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     try {
       setLoading(true);
@@ -51,14 +66,35 @@ export default function Login() {
     }
   };
 
+  const handleInviteSubmit = async (e) => {
+    e.preventDefault();
+    if (!email.trim() || !inviteToken.trim()) {
+      toast.error('Email and single-use invitation code are required');
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      await inviteLogin(email.trim(), inviteToken.trim());
+      toast.success('Successfully authenticated! Welcome to your workspace.');
+      navigate('/');
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Invalid or expired invitation code';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* ── Left panel: form ── */}
       <div className="flex flex-1 flex-col justify-center px-6 py-12 lg:px-16 xl:px-24 bg-white shadow-xl z-10">
         <div className="mx-auto w-full max-w-sm">
           {/* Logo */}
-          <div className="flex items-center gap-2.5 mb-10">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600">
+          <div className="flex items-center gap-2.5 mb-8">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 shadow-sm">
               <Package className="h-5 w-5 text-white" />
             </div>
             <span className="text-xl font-bold tracking-tight text-gray-900">StockSense</span>
@@ -66,68 +102,167 @@ export default function Login() {
 
           {/* Heading */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">Sign in to your account</h1>
-            <p className="mt-1.5 text-sm text-gray-500">Welcome back — your inventory awaits.</p>
-            <div className="mt-3 p-2.5 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-900 flex items-start gap-2">
-              <span className="font-bold shrink-0">🔑 Have an Invite Code?</span>
-              <span className="text-indigo-700">Sign in with your invited email. You'll be prompted to enter your invite code on the onboarding screen.</span>
-            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+              {authMethod === 'password' ? 'Sign in to your account' : 'Sign in with Single-Use Code'}
+            </h1>
+            <p className="mt-1 text-sm text-gray-500">
+              {authMethod === 'password'
+                ? 'Welcome back — enter your credentials.'
+                : 'No password required — enter your email and admin code.'}
+            </p>
           </div>
 
-
-
-          {/* Google */}
-          <div className="flex justify-center mb-5">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={() => setError('Google sign in failed')}
-              shape="rectangular"
-              size="large"
-              text="signin_with"
-              width={384}
-            />
-          </div>
-
-          {/* Divider */}
-          <div className="relative mb-5">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-white px-3 text-xs text-gray-400">or continue with email</span>
-            </div>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <InputField label="Email address" type="email" value={email} onChange={setEmail} placeholder="you@company.com" required />
-            <InputField label="Password" type="password" value={password} onChange={setPassword} placeholder="Your password" required />
-
-            <div className="flex justify-end">
-              <Link to="/forgot-password" className="text-xs text-indigo-600 hover:text-indigo-500 font-medium">
-                Forgot password?
-              </Link>
-            </div>
-
+          {/* Auth Method Switcher */}
+          <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-xl mb-5">
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              type="button"
+              onClick={() => { setAuthMethod('password'); setError(null); }}
+              className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                authMethod === 'password'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
             >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                  </svg>
-                  Signing in…
-                </span>
-              ) : 'Sign in'}
+              <Lock size={13} /> Password Login
             </button>
-          </form>
+            <button
+              type="button"
+              onClick={() => { setAuthMethod('invite'); setError(null); }}
+              className={`py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                authMethod === 'invite'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-900'
+              }`}
+            >
+              <Key size={13} /> Single-Use Code
+            </button>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <span className="mt-0.5 shrink-0">⚠</span>
+              {error}
+            </div>
+          )}
+
+          {authMethod === 'password' ? (
+            /* --- METHOD 1: STANDARD PASSWORD LOGIN --- */
+            <>
+              {/* Google SSO */}
+              <div className="flex justify-center mb-5">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError('Google sign in failed')}
+                  shape="rectangular"
+                  size="large"
+                  text="signin_with"
+                  width={384}
+                />
+              </div>
+
+              {/* Divider */}
+              <div className="relative mb-5">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="bg-white px-3 text-xs text-gray-400">or continue with email</span>
+                </div>
+              </div>
+
+              {/* Form */}
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <InputField label="Email address" type="email" value={email} onChange={setEmail} placeholder="you@company.com" required />
+                <InputField label="Password" type="password" value={password} onChange={setPassword} placeholder="Your password" required />
+
+                <div className="flex justify-end">
+                  <Link to="/forgot-password" className="text-xs text-indigo-600 hover:text-indigo-500 font-medium">
+                    Forgot password?
+                  </Link>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Signing in…
+                    </span>
+                  ) : 'Sign in'}
+                </button>
+              </form>
+            </>
+          ) : (
+            /* --- METHOD 2: SINGLE-USE INVITATION CODE (NO PASSWORD REQUIRED) --- */
+            <form onSubmit={handleInviteSubmit} className="space-y-4">
+              <InputField 
+                label="Invited Email Address" 
+                type="email" 
+                value={email} 
+                onChange={setEmail} 
+                placeholder="colleague@example.com" 
+                required 
+              />
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Single-Use Invitation Code
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={inviteToken}
+                    onChange={(e) => setInviteToken(e.target.value)}
+                    placeholder="Paste 64-character code from admin"
+                    required
+                    className="block w-full font-mono rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-xs text-gray-900 placeholder:text-gray-400 shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Issued by your Company Admin in Team & Access Management.
+                </p>
+              </div>
+
+              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-xs text-indigo-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-indigo-950">
+                  <Key size={13} className="text-indigo-600" /> Passwordless One-Click Access
+                </p>
+                <p className="text-gray-600 text-[11px]">
+                  No password needed. Submitting this code activates your assigned warehouse scope and connects you directly to your company workspace.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !email.trim() || !inviteToken.trim()}
+                className="w-full flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                    </svg>
+                    Verifying Code…
+                  </span>
+                ) : (
+                  <>
+                    Sign In with Invitation Code <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
 
           <p className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account?{' '}
+            Don't have an account or code?{' '}
             <Link to="/register" className="font-semibold text-indigo-600 hover:text-indigo-500">
               Create one
             </Link>

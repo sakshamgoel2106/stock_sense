@@ -37,6 +37,14 @@ export const AuthProvider = ({ children }) => {
     await fetchUser();
   };
 
+  const inviteLogin = async (email, token, password) => {
+    localStorage.removeItem('companyId');
+    const res = await api.post('/auth/invite-login', { email, token, password });
+    localStorage.setItem('token', res.data.token);
+    await fetchUser();
+    return res.data;
+  };
+
   const register = async (name, email, password, role = 'WORKER') => {
     localStorage.removeItem('companyId');
     const res = await api.post('/auth/register', { name, email, password, role });
@@ -74,6 +82,7 @@ export const AuthProvider = ({ children }) => {
       hasCompany: user?.hasCompany ?? false,
       role: user?.activeMembership?.role || user?.role || 'WORKER',
       login, 
+      inviteLogin,
       register, 
       googleLogin, 
       logout, 

@@ -148,10 +148,10 @@ const getLedger = asyncHandler(async (req, res) => {
   }
 
   const ledger = await StockLedger.find(filter)
-    .populate('product', 'name sku')
-    .populate('warehouse', 'name')
-    .populate('operation', 'type')
-    .populate('user', 'name')
+    .populate('product', 'name sku unitOfMeasure category')
+    .populate('warehouse', 'name code location')
+    .populate('operation', 'type createdAt')
+    .populate('user', 'name email role')
     .sort({ createdAt: -1 });
   res.json(ledger);
 });

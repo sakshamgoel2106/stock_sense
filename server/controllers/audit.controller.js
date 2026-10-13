@@ -1,6 +1,8 @@
 const asyncHandler = require('express-async-handler');
 const mongoose = require('mongoose');
 const Audit = require('../models/Audit');
+const Product = require('../models/Product');
+const Warehouse = require('../models/Warehouse');
 const Stock = require('../models/Stock');
 const Operation = require('../models/Operation');
 const { validateOperation, runWithTransaction } = require('../services/inventory.service');
@@ -17,7 +19,8 @@ const createAudit = asyncHandler(async (req, res) => {
 
   const items = productIds.map(productId => ({
     product: productId,
-    countedQuantity: null 
+    countedQuantity: null,
+    owner: req.user ? req.user._id : null
   }));
 
   const audit = new Audit({
@@ -30,7 +33,12 @@ const createAudit = asyncHandler(async (req, res) => {
   });
 
   const createdAudit = await audit.save();
-  res.status(201).json(createdAudit);
+  const populated = await Audit.findById(createdAudit._id)
+    .populate('warehouse', 'name code location')
+    .populate('countedBy', 'name email')
+    .populate('items.product', 'name sku unitOfMeasure category');
+
+  res.status(201).json(populated);
 });
 
 // @desc    Update counts for an audit
@@ -115,10 +123,10 @@ const getAudits = asyncHandler(async (req, res) => {
   }
 
   const audits = await Audit.find(query)
-    .populate('warehouse', 'name code')
-    .populate('countedBy', 'name')
-    .populate('reviewedBy', 'name')
-    .populate('items.product', 'name sku')
+    .populate('warehouse', 'name code location')
+    .populate('countedBy', 'name email')
+    .populate('reviewedBy', 'name email')
+    .populate('items.product', 'name sku unitOfMeasure category')
     .sort({ createdAt: -1 });
 
   const currentRole = req.membership ? req.membership.role : req.user.role;
@@ -149,10 +157,10 @@ const getAuditById = asyncHandler(async (req, res) => {
   if (req.company) query.company = req.company._id;
 
   const audit = await Audit.findOne(query)
-    .populate('warehouse', 'name code')
-    .populate('countedBy', 'name')
-    .populate('reviewedBy', 'name')
-    .populate('items.product', 'name sku');
+    .populate('warehouse', 'name code location')
+    .populate('countedBy', 'name email')
+    .populate('reviewedBy', 'name email')
+    .populate('items.product', 'name sku unitOfMeasure category');
 
   if (!audit) {
     res.status(404);
@@ -191,8 +199,11 @@ const approveAudit = asyncHandler(async (req, res) => {
     const currentRole = req.membership ? req.membership.role : req.user.role;
     const isSuperAdmin = currentRole === 'COMPANY_ADMIN' || currentRole === 'ADMIN';
 
-    if (audit.countedBy.toString() === req.user._id.toString() && !isSuperAdmin) {
-        throw new Error('Separation of duties: You cannot approve an audit you counted yourself.');
+    const isSelfCounted = audit.countedBy && audit.countedBy.toString() === req.user._id.toString();
+    const allowOverride = req.body.overrideSeparationOfDuties === true || isSuperAdmin;
+
+    if (isSelfCounted && !allowOverride) {
+      throw new Error('Separation of duties: You cannot approve an audit you counted yourself without Company Admin authorization.');
     }
 
     if (reasons) {
@@ -319,18 +330,26 @@ const recountAudit = asyncHandler(async (req, res) => {
 
   const items = oldAudit.items.map(item => ({
     product: item.product,
-    countedQuantity: null
+    countedQuantity: null,
+    owner: req.user ? req.user._id : null
   }));
 
   const newAudit = new Audit({
     warehouse: oldAudit.warehouse,
     items,
     countedBy: req.user._id,
+    company: oldAudit.company || (req.company ? req.company._id : null),
+    owner: req.user ? req.user._id : oldAudit.owner,
     status: 'DRAFT'
   });
 
   const createdAudit = await newAudit.save();
-  res.status(201).json(createdAudit);
+  const populated = await Audit.findById(createdAudit._id)
+    .populate('warehouse', 'name code location')
+    .populate('countedBy', 'name email')
+    .populate('items.product', 'name sku unitOfMeasure category');
+
+  res.status(201).json(populated);
 });
 
 module.exports = {

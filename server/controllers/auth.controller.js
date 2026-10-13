@@ -352,9 +352,115 @@ const updatePassword = asyncHandler(async (req, res) => {
   res.json({ message: 'Password updated successfully' });
 });
 
+// @desc    Authenticate and join company with a single-use invitation code (Passwordless / Auto-provisioned)
+// @route   POST /api/v1/auth/invite-login
+// @access  Public
+const inviteLogin = asyncHandler(async (req, res) => {
+  const { email, token, name, password } = req.body;
+
+  if (!email || !email.trim()) {
+    res.status(400);
+    throw new Error('Email address is required');
+  }
+
+  if (!token || !token.trim()) {
+    res.status(400);
+    throw new Error('Single-use invitation code is required');
+  }
+
+  const cleanEmail = email.toLowerCase().trim();
+  const cleanToken = token.trim();
+
+  const tokenHash = crypto.createHash('sha256').update(cleanToken).digest('hex');
+  const Invitation = require('../models/Invitation');
+  const Membership = require('../models/Membership');
+  const Company = require('../models/Company');
+
+  const invitation = await Invitation.findOne({ tokenHash });
+  if (!invitation) {
+    res.status(404);
+    throw new Error('Invalid or unrecognized invitation code. Please verify the code given by your admin.');
+  }
+
+  if (invitation.status !== 'PENDING') {
+    res.status(400);
+    throw new Error(`This invitation code has already been ${invitation.status.toLowerCase()}.`);
+  }
+
+  if (new Date() > invitation.expiresAt) {
+    invitation.status = 'EXPIRED';
+    await invitation.save();
+    res.status(400);
+    throw new Error('This invitation code has expired. Please ask your administrator to generate a new code.');
+  }
+
+  if (invitation.email.toLowerCase().trim() !== cleanEmail) {
+    res.status(403);
+    throw new Error(`This invitation code was issued to ${invitation.email}. Please use the correct invited email.`);
+  }
+
+  // Find or create User account
+  let user = await User.findOne({ email: cleanEmail });
+  if (!user) {
+    const defaultName = name && name.trim() 
+      ? name.trim() 
+      : cleanEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const initialPassword = password && password.trim() ? password.trim() : 'Password123!';
+    user = await User.create({
+      name: defaultName,
+      email: cleanEmail,
+      password: initialPassword,
+      role: invitation.role
+    });
+  } else if (password && password.trim()) {
+    user.password = password.trim();
+    await user.save();
+  }
+
+  // Enroll or update Membership
+  let membership = await Membership.findOne({
+    userId: user._id,
+    companyId: invitation.companyId
+  });
+
+  if (membership) {
+    membership.role = invitation.role;
+    membership.warehouseIds = invitation.warehouseIds;
+    membership.status = 'ACTIVE';
+    await membership.save();
+  } else {
+    membership = await Membership.create({
+      userId: user._id,
+      companyId: invitation.companyId,
+      role: invitation.role,
+      warehouseIds: invitation.warehouseIds,
+      status: 'ACTIVE',
+      invitedBy: invitation.invitedBy
+    });
+  }
+
+  // Mark invitation as accepted
+  invitation.status = 'ACCEPTED';
+  invitation.acceptedBy = user._id;
+  invitation.acceptedAt = new Date();
+  await invitation.save();
+
+  const company = await Company.findById(invitation.companyId);
+
+  res.status(200).json({
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: membership.role,
+    token: generateToken(user._id),
+    company
+  });
+});
+
 module.exports = {
   register,
   login,
+  inviteLogin,
   getMe,
   forgotPassword,
   verifyOTP,

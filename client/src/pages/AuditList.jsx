@@ -133,7 +133,9 @@ const AuditList = () => {
                       </td>
 
                       <td className="px-6 py-3.5 whitespace-nowrap text-slate-500">
-                        {new Date(audit.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                        {audit.createdAt && !isNaN(new Date(audit.createdAt).getTime())
+                          ? new Date(audit.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })
+                          : '-'}
                       </td>
 
                       <td className="px-6 py-3.5 whitespace-nowrap">

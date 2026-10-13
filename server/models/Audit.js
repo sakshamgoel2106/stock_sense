@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const auditItemSchema = new mongoose.Schema({
-  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
   countedQuantity: { type: Number, min: 0 },
   systemQuantitySnapshot: { type: Number },
@@ -12,6 +12,7 @@ const auditItemSchema = new mongoose.Schema({
 
 const auditSchema = new mongoose.Schema({
   company: { type: mongoose.Schema.Types.ObjectId, ref: 'Company' },
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   warehouse: { type: mongoose.Schema.Types.ObjectId, ref: 'Warehouse', required: true },
   status: { 
     type: String, 
